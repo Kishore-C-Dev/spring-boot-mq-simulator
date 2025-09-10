@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQ Testing Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <style>
+        .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+        .htmx-request .htmx-indicator { opacity: 1; }
+        .spinner { border: 2px solid #f3f3f3; border-top: 2px solid #3498db; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Navigation -->
+    <nav class="bg-blue-600 text-white shadow-lg">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-8">
+                    <h1 class="text-xl font-bold">MQ Testing Simulator</h1>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <button 
+                        class="bg-blue-500 hover:bg-blue-700 px-4 py-2 rounded transition-colors"
+                        hx-post="/admin/queues/refresh"
+                        hx-target="#refresh-result"
+                        hx-indicator="#refresh-spinner">
+                        <div id="refresh-spinner" class="htmx-indicator spinner inline-block mr-2"></div>
+                        Refresh Listeners
+                    </button>
+                    <div id="refresh-result" class="text-sm"></div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto px-4 py-8">
+        <!-- Tab Navigation -->
+        <div class="bg-white rounded-lg shadow-md mb-6">
+            <div class="border-b border-gray-200">
+                <nav class="-mb-px flex">
+                    <button onclick="showTab('queues')" id="queues-tab" 
+                            class="py-2 px-4 border-b-2 border-blue-500 text-blue-600 font-medium">
+                        Queue Configurations
+                    </button>
+                    <button onclick="showTab('mappings')" id="mappings-tab"
+                            class="py-2 px-4 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium">
+                        Response Mappings
+                    </button>
+                </nav>
+            </div>
+
+            <!-- Queues Tab -->
+            <div id="queues-content" class="p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Queue Configurations</h2>
+                    <button onclick="showQueueModal()" 
+                            class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors">
+                        Add Queue
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white border border-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Queue Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Concurrency</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Listener</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr th:each="queue : ${queues}">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" th:text="${queue.queueName}">SIM.REQUEST.Q1</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" th:text="${queue.concurrency}">2-5</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span th:class="${queue.enabled} ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                          class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                                          th:text="${queue.enabled} ? 'Enabled' : 'Disabled'">Enabled</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-xs text-gray-500" 
+                                    th:text="${listenerStatus.get(queue.queueName) ?: 'Not Active'}">Running: true, Active Consumers: 2</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                    <button onclick="editQueue(this)" 
+                                            th:attr="data-id=${queue.id},data-queue-name=${queue.queueName},data-concurrency=${queue.concurrency},data-enabled=${queue.enabled}"
+                                            class="text-blue-600 hover:text-blue-900">Edit</button>
+                                    <button th:attr="hx-delete=@{'/admin/queues/' + ${queue.id}}"
+                                            hx-confirm="Are you sure you want to delete this queue?"
+                                            hx-target="#queues-content"
+                                            hx-get="/ui"
+                                            hx-select="#queues-content"
+                                            class="text-red-600 hover:text-red-900">Delete</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Mappings Tab -->
+            <div id="mappings-content" class="p-6 hidden">
+                <div class="flex justify-between items-center mb-4">
+                    <h2 class="text-xl font-semibold">Response Mappings</h2>
+                    <button onclick="showMappingModal()" 
+                            class="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600 transition-colors">
+                        Add Mapping
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full bg-white border border-gray-200">
+                        <thead class="bg-gray-50">
+                            <tr>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Queue</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Correlation ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Priority</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Delay</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                                <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                            <tr th:each="mapping : ${mappings}">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" th:text="${mapping.queueName}">SIM.REQUEST.Q1</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" th:text="${mapping.match.correlationId}">^OK-.*</td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span th:class="${mapping.response.type.name() == 'XML'} ? 'bg-blue-100 text-blue-800' : 'bg-purple-100 text-purple-800'"
+                                          class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                                          th:text="${mapping.response.type}">XML</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" th:text="${mapping.priority}">1</td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <span th:if="${mapping.delay.mode.name() == 'FIXED'}" th:text="${mapping.delay.fixedMs} + 'ms'">120ms</span>
+                                    <span th:if="${mapping.delay.mode.name() == 'VARIABLE'}" th:text="${mapping.delay.variableMinMs} + '-' + ${mapping.delay.variableMaxMs} + 'ms'">100-500ms</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span th:class="${mapping.enabled} ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                          class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                                          th:text="${mapping.enabled} ? 'Enabled' : 'Disabled'">Enabled</span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right text-sm font-medium space-x-2">
+                                    <button onclick="editMapping(this)" 
+                                            th:attr="data-mapping-id=${mapping.id}"
+                                            class="text-blue-600 hover:text-blue-900">Edit</button>
+                                    <button th:attr="hx-delete=@{'/admin/mappings/' + ${mapping.id}}"
+                                            hx-confirm="Are you sure you want to delete this mapping?"
+                                            hx-target="#mappings-content"
+                                            hx-get="/ui"
+                                            hx-select="#mappings-content"
+                                            class="text-red-600 hover:text-red-900">Delete</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Queue Modal -->
+    <div id="queueModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="px-6 py-4 border-b">
+                    <h3 class="text-lg font-medium" id="queueModalTitle">Add Queue Configuration</h3>
+                </div>
+                <form id="queueForm" class="px-6 py-4 space-y-4">
+                    <input type="hidden" id="queueId" name="id">
+                    <div>
+                        <label for="queueName" class="block text-sm font-medium text-gray-700">Queue Name</label>
+                        <input type="text" id="queueName" name="queueName" required
+                               class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div>
+                        <label for="concurrency" class="block text-sm font-medium text-gray-700">Concurrency</label>
+                        <input type="text" id="concurrency" name="concurrency" required pattern="\\d+(-\\d+)?" placeholder="2-5"
+                               class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <p class="text-xs text-gray-500 mt-1">Format: '2' or '2-5'</p>
+                    </div>
+                    <div>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="enabled" name="enabled" class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-sm font-medium text-gray-700">Enabled</span>
+                        </label>
+                    </div>
+                </form>
+                <div class="px-6 py-4 border-t flex justify-end space-x-2">
+                    <button onclick="hideQueueModal()" class="px-4 py-2 text-gray-700 border border-gray-300 rounded hover:bg-gray-50">Cancel</button>
+                    <button onclick="saveQueue()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mapping Modal -->
+    <div id="mappingModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden">
+        <div class="flex items-center justify-center min-h-screen px-4 py-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-2xl w-full flex flex-col" style="max-height: 90vh;">
+                <div class="px-6 py-4 border-b flex-shrink-0">
+                    <h3 class="text-lg font-medium" id="mappingModalTitle">Add Response Mapping</h3>
+                </div>
+                <div class="flex-1 overflow-y-auto min-h-0">
+                    <form id="mappingForm" class="px-6 py-4 space-y-4">
+                    <input type="hidden" id="mappingId" name="id">
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label for="mappingQueueName" class="block text-sm font-medium text-gray-700">Queue Name</label>
+                            <input type="text" id="mappingQueueName" name="queueName" required
+                                   class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <label for="priority" class="block text-sm font-medium text-gray-700">Priority</label>
+                            <input type="number" id="priority" name="priority" min="1" max="10" value="5" required
+                                   class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+
+                    <!-- Match Criteria -->
+                    <div class="border-t pt-4">
+                        <h4 class="text-md font-medium text-gray-900 mb-3">Match Criteria</h4>
+                        <div>
+                            <label for="correlationId" class="block text-sm font-medium text-gray-700">Correlation ID Pattern</label>
+                            <input type="text" id="correlationId" name="correlationId" placeholder="^OK-.*$"
+                                   class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                    </div>
+
+                    <!-- Response Configuration -->
+                    <div class="border-t pt-4">
+                        <h4 class="text-md font-medium text-gray-900 mb-3">Response Configuration</h4>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label for="responseType" class="block text-sm font-medium text-gray-700">Response Type</label>
+                                <select id="responseType" name="responseType" onchange="toggleResponseFields()" required
+                                        class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="XML">XML</option>
+                                    <option value="MF">Mainframe (Base64)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div id="xmlBodyField" class="mt-4">
+                            <label for="xmlBody" class="block text-sm font-medium text-gray-700">XML Response Body</label>
+                            <textarea id="xmlBody" name="xmlBody" rows="4" placeholder="<status>OK</status>"
+                                      class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+                        <div id="mfBodyField" class="mt-4 hidden">
+                            <label for="mfBodyBase64" class="block text-sm font-medium text-gray-700">Mainframe Response Body (Base64)</label>
+                            <textarea id="mfBodyBase64" name="mfBodyBase64" rows="4" placeholder="Base64 encoded EBCDIC data"
+                                      class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"></textarea>
+                        </div>
+                        
+                        <!-- Response Headers Configuration -->
+                        <div class="mt-6 border-t pt-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h4 class="text-md font-medium text-gray-900">Response Headers</h4>
+                                <button type="button" onclick="addHeaderConfig()" 
+                                        class="bg-green-500 hover:bg-green-600 text-white px-3 py-1 rounded text-sm">
+                                    Add Header
+                                </button>
+                            </div>
+                            <div id="headerConfigs" class="space-y-3">
+                                <!-- Dynamic header configurations will be added here -->
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Delay Configuration -->
+                    <div class="border-t pt-4">
+                        <h4 class="text-md font-medium text-gray-900 mb-3">Delay Configuration</h4>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div>
+                                <label for="delayMode" class="block text-sm font-medium text-gray-700">Delay Mode</label>
+                                <select id="delayMode" name="delayMode" onchange="toggleDelayFields()" required
+                                        class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    <option value="FIXED">Fixed</option>
+                                    <option value="VARIABLE">Variable</option>
+                                </select>
+                            </div>
+                            <div id="fixedDelayField">
+                                <label for="fixedMs" class="block text-sm font-medium text-gray-700">Fixed Delay (ms)</label>
+                                <input type="number" id="fixedMs" name="fixedMs" min="0" value="0"
+                                       class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            </div>
+                            <div id="variableDelayFields" class="hidden col-span-2 grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="variableMinMs" class="block text-sm font-medium text-gray-700">Min Delay (ms)</label>
+                                    <input type="number" id="variableMinMs" name="variableMinMs" min="0" value="100"
+                                           class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                </div>
+                                <div>
+                                    <label for="variableMaxMs" class="block text-sm font-medium text-gray-700">Max Delay (ms)</label>
+                                    <input type="number" id="variableMaxMs" name="variableMaxMs" min="0" value="500"
+                                           class="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div>
+                        <label class="flex items-center">
+                            <input type="checkbox" id="mappingEnabled" name="enabled" checked class="rounded border-gray-300 text-blue-600 focus:ring-blue-500">
+                            <span class="ml-2 text-sm font-medium text-gray-700">Enabled</span>
+                        </label>
+                    </div>
+                    </form>
+                </div>
+                <div class="px-6 py-4 border-t flex justify-end space-x-2 flex-shrink-0">
+                    <button onclick="hideMappingModal()" class="px-4 py-2 text-gray-700 border border-gray-300 rounded hover:bg-gray-50">Cancel</button>
+                    <button onclick="saveMapping()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Tab switching
+        function showTab(tab) {
+            const queuesTab = document.getElementById('queues-tab');
+            const mappingsTab = document.getElementById('mappings-tab');
+            const queuesContent = document.getElementById('queues-content');
+            const mappingsContent = document.getElementById('mappings-content');
+
+            if (tab === 'queues') {
+                queuesTab.className = 'py-2 px-4 border-b-2 border-blue-500 text-blue-600 font-medium';
+                mappingsTab.className = 'py-2 px-4 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium';
+                queuesContent.classList.remove('hidden');
+                mappingsContent.classList.add('hidden');
+            } else {
+                mappingsTab.className = 'py-2 px-4 border-b-2 border-blue-500 text-blue-600 font-medium';
+                queuesTab.className = 'py-2 px-4 border-b-2 border-transparent text-gray-500 hover:text-gray-700 font-medium';
+                mappingsContent.classList.remove('hidden');
+                queuesContent.classList.add('hidden');
+            }
+        }
+
+        // Queue modal functions
+        function showQueueModal(queue) {
+            const modal = document.getElementById('queueModal');
+            const form = document.getElementById('queueForm');
+            
+            if (queue) {
+                document.getElementById('queueModalTitle').textContent = 'Edit Queue Configuration';
+                document.getElementById('queueId').value = queue.id;
+                document.getElementById('queueName').value = queue.queueName;
+                document.getElementById('concurrency').value = queue.concurrency;
+                document.getElementById('enabled').checked = queue.enabled;
+            } else {
+                document.getElementById('queueModalTitle').textContent = 'Add Queue Configuration';
+                form.reset();
+                document.getElementById('enabled').checked = true;
+            }
+            
+            modal.classList.remove('hidden');
+        }
+
+        function hideQueueModal() {
+            document.getElementById('queueModal').classList.add('hidden');
+        }
+
+        function editQueue(button) {
+            const queueData = {
+                id: button.getAttribute('data-id'),
+                queueName: button.getAttribute('data-queue-name'),
+                concurrency: button.getAttribute('data-concurrency'),
+                enabled: button.getAttribute('data-enabled') === 'true'
+            };
+            showQueueModal(queueData);
+        }
+
+        function saveQueue() {
+            const form = document.getElementById('queueForm');
+            const formData = new FormData(form);
+            const queueData = Object.fromEntries(formData);
+            queueData.enabled = document.getElementById('enabled').checked;
+            
+            const isEdit = queueData.id && queueData.id.trim() !== '';
+            const url = isEdit ? `/admin/queues/${queueData.id}` : '/admin/queues';
+            const method = isEdit ? 'PUT' : 'POST';
+            
+            fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(queueData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    hideQueueModal();
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+        }
+
+        // Mapping modal functions
+        function showMappingModal(mapping) {
+            const modal = document.getElementById('mappingModal');
+            const form = document.getElementById('mappingForm');
+            
+            if (mapping) {
+                document.getElementById('mappingModalTitle').textContent = 'Edit Response Mapping';
+                
+                // Populate form with mapping data
+                document.getElementById('mappingId').value = mapping.id;
+                document.getElementById('mappingQueueName').value = mapping.queueName;
+                document.getElementById('priority').value = mapping.priority;
+                document.getElementById('correlationId').value = mapping.match.correlationId || '';
+                document.getElementById('responseType').value = mapping.response.type;
+                document.getElementById('delayMode').value = mapping.delay.mode;
+                document.getElementById('mappingEnabled').checked = mapping.enabled;
+                
+                // Set response body based on type
+                if (mapping.response.type === 'XML') {
+                    document.getElementById('xmlBody').value = mapping.response.xmlBody || '';
+                } else {
+                    document.getElementById('mfBodyBase64').value = mapping.response.mfBodyBase64 || '';
+                }
+                
+                // Load header configurations
+                loadHeaderConfigs(mapping.response.headerConfigs);
+                
+                // Set delay configuration
+                if (mapping.delay.mode === 'FIXED') {
+                    document.getElementById('fixedMs').value = mapping.delay.fixedMs || 0;
+                } else {
+                    document.getElementById('variableMinMs').value = mapping.delay.variableMinMs || 100;
+                    document.getElementById('variableMaxMs').value = mapping.delay.variableMaxMs || 500;
+                }
+                
+                // Update field visibility
+                toggleResponseFields();
+                toggleDelayFields();
+            } else {
+                document.getElementById('mappingModalTitle').textContent = 'Add Response Mapping';
+                form.reset();
+                document.getElementById('mappingEnabled').checked = true;
+                document.getElementById('priority').value = 5;
+                document.getElementById('fixedMs').value = 0;
+                document.getElementById('variableMinMs').value = 100;
+                document.getElementById('variableMaxMs').value = 500;
+                
+                // Clear header configurations
+                loadHeaderConfigs(null);
+                
+                toggleResponseFields();
+                toggleDelayFields();
+            }
+            
+            modal.classList.remove('hidden');
+        }
+
+        function hideMappingModal() {
+            document.getElementById('mappingModal').classList.add('hidden');
+        }
+
+        function editMapping(button) {
+            const mappingId = button.getAttribute('data-mapping-id');
+            if (!mappingId) {
+                alert('Error: Unable to get mapping ID');
+                return;
+            }
+            
+            // Fetch mapping data from API
+            fetch(`/admin/mappings/${mappingId}`)
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error(`Failed to fetch mapping: ${response.status}`);
+                    }
+                    return response.json();
+                })
+                .then(mapping => {
+                    showMappingModal(mapping);
+                })
+                .catch(error => {
+                    alert('Error loading mapping: ' + error.message);
+                });
+        }
+
+        function saveMapping() {
+            const form = document.getElementById('mappingForm');
+            const formData = new FormData(form);
+            
+            // Validate required fields
+            const queueName = formData.get('queueName')?.trim();
+            if (!queueName) {
+                alert('Queue name is required');
+                return;
+            }
+            
+            const priority = parseInt(formData.get('priority'));
+            if (!priority || priority < 1 || priority > 10) {
+                alert('Priority must be between 1 and 10');
+                return;
+            }
+            
+            // Build mapping object
+            const mapping = {
+                queueName: queueName,
+                priority: priority,
+                enabled: document.getElementById('mappingEnabled').checked,
+                match: {
+                    correlationId: formData.get('correlationId') || ''
+                },
+                response: {
+                    type: formData.get('responseType')
+                },
+                delay: {
+                    mode: formData.get('delayMode')
+                }
+            };
+
+            // Set response body based on type
+            if (mapping.response.type === 'XML') {
+                mapping.response.xmlBody = formData.get('xmlBody') || '';
+            } else {
+                mapping.response.mfBodyBase64 = formData.get('mfBodyBase64') || '';
+            }
+
+            // Set header configurations
+            mapping.response.headerConfigs = collectHeaderConfigs();
+
+            // Set delay configuration
+            if (mapping.delay.mode === 'FIXED') {
+                mapping.delay.fixedMs = parseInt(formData.get('fixedMs')) || 0;
+            } else {
+                mapping.delay.variableMinMs = parseInt(formData.get('variableMinMs')) || 100;
+                mapping.delay.variableMaxMs = parseInt(formData.get('variableMaxMs')) || 500;
+            }
+
+            const isEdit = formData.get('id') && formData.get('id').trim() !== '';
+            const url = isEdit ? `/admin/mappings/${formData.get('id')}` : '/admin/mappings';
+            const method = isEdit ? 'PUT' : 'POST';
+            
+            fetch(url, {
+                method: method,
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(mapping)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    // Handle validation errors
+                    if (response.status === 400) {
+                        return response.json().then(errorData => {
+                            if (errorData.errors) {
+                                // Format field-specific errors
+                                const errorMessages = Object.entries(errorData.errors)
+                                    .map(([field, message]) => `${field}: ${message}`)
+                                    .join('\n');
+                                throw new Error(errorData.message + '\n\n' + errorMessages);
+                            }
+                            throw new Error(errorData.message || errorData.error || 'Validation failed. Please check all required fields.');
+                        });
+                    }
+                    throw new Error(`Server error: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    hideMappingModal();
+                    location.reload();
+                }
+            })
+            .catch(error => {
+                alert('Error: ' + error.message);
+            });
+        }
+
+        function toggleResponseFields() {
+            const responseType = document.getElementById('responseType').value;
+            const xmlField = document.getElementById('xmlBodyField');
+            const mfField = document.getElementById('mfBodyField');
+            
+            if (responseType === 'XML') {
+                xmlField.classList.remove('hidden');
+                mfField.classList.add('hidden');
+            } else {
+                xmlField.classList.add('hidden');
+                mfField.classList.remove('hidden');
+            }
+        }
+
+        function toggleDelayFields() {
+            const delayMode = document.getElementById('delayMode').value;
+            const fixedField = document.getElementById('fixedDelayField');
+            const variableFields = document.getElementById('variableDelayFields');
+            
+            if (delayMode === 'FIXED') {
+                fixedField.classList.remove('hidden');
+                variableFields.classList.add('hidden');
+            } else {
+                fixedField.classList.add('hidden');
+                variableFields.classList.remove('hidden');
+            }
+        }
+
+        // Header configuration management
+        let headerConfigCounter = 0;
+        
+        function addHeaderConfig(headerName = '', source = 'FIXED', fixedValue = '', requestHeaderName = '') {
+            const container = document.getElementById('headerConfigs');
+            const configId = 'headerConfig_' + headerConfigCounter++;
+            
+            const configDiv = document.createElement('div');
+            configDiv.id = configId;
+            configDiv.className = 'border border-gray-200 rounded-lg p-4 bg-gray-50';
+            configDiv.innerHTML = `
+                <div class="flex items-center justify-between mb-3">
+                    <h5 class="font-medium text-gray-800">Response Header Configuration</h5>
+                    <button type="button" onclick="removeHeaderConfig('${configId}')" 
+                            class="text-red-600 hover:text-red-800 text-sm">Remove</button>
+                </div>
+                <div class="grid grid-cols-2 gap-4 mb-3">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Header Name</label>
+                        <input type="text" class="header-name mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" 
+                               placeholder="X-Custom-Header" value="${headerName}" required>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Source</label>
+                        <select class="header-source mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" 
+                                onchange="toggleHeaderSource('${configId}')" required>
+                            <option value="FIXED" ${source === 'FIXED' ? 'selected' : ''}>Fixed Value</option>
+                            <option value="COPY_FROM_REQUEST" ${source === 'COPY_FROM_REQUEST' ? 'selected' : ''}>Copy from Request</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="header-fixed-field ${source === 'FIXED' ? '' : 'hidden'}">
+                    <label class="block text-sm font-medium text-gray-700">Fixed Value</label>
+                    <input type="text" class="header-fixed-value mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" 
+                           placeholder="Header value" value="${fixedValue}">
+                </div>
+                <div class="header-copy-field ${source === 'COPY_FROM_REQUEST' ? '' : 'hidden'}">
+                    <label class="block text-sm font-medium text-gray-700">Request Header Name to Copy</label>
+                    <input type="text" class="header-request-name mt-1 block w-full border border-gray-300 rounded-md px-3 py-2" 
+                           placeholder="X-Request-Header" value="${requestHeaderName}">
+                </div>
+            `;
+            
+            container.appendChild(configDiv);
+        }
+        
+        function removeHeaderConfig(configId) {
+            const element = document.getElementById(configId);
+            if (element) {
+                element.remove();
+            }
+        }
+        
+        function toggleHeaderSource(configId) {
+            const container = document.getElementById(configId);
+            const source = container.querySelector('.header-source').value;
+            const fixedField = container.querySelector('.header-fixed-field');
+            const copyField = container.querySelector('.header-copy-field');
+            
+            if (source === 'FIXED') {
+                fixedField.classList.remove('hidden');
+                copyField.classList.add('hidden');
+            } else {
+                fixedField.classList.add('hidden');
+                copyField.classList.remove('hidden');
+            }
+        }
+        
+        function loadHeaderConfigs(headerConfigs) {
+            const container = document.getElementById('headerConfigs');
+            container.innerHTML = ''; // Clear existing configs
+            
+            if (headerConfigs) {
+                Object.entries(headerConfigs).forEach(([headerName, config]) => {
+                    addHeaderConfig(
+                        headerName,
+                        config.source,
+                        config.fixedValue || '',
+                        config.requestHeaderName || ''
+                    );
+                });
+            }
+        }
+        
+        function collectHeaderConfigs() {
+            const configs = {};
+            const container = document.getElementById('headerConfigs');
+            
+            container.querySelectorAll('[id^="headerConfig_"]').forEach(configDiv => {
+                const headerName = configDiv.querySelector('.header-name').value.trim();
+                const source = configDiv.querySelector('.header-source').value;
+                const fixedValue = configDiv.querySelector('.header-fixed-value').value.trim();
+                const requestHeaderName = configDiv.querySelector('.header-request-name').value.trim();
+                
+                if (headerName) {
+                    configs[headerName] = {
+                        source: source,
+                        fixedValue: source === 'FIXED' ? fixedValue : null,
+                        requestHeaderName: source === 'COPY_FROM_REQUEST' ? requestHeaderName : null
+                    };
+                }
+            });
+            
+            return configs;
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            toggleResponseFields();
+            toggleDelayFields();
+        });
+    </script>
+</body>
+</html>

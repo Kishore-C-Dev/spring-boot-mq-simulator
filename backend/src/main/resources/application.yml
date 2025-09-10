@@ -1,0 +1,69 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: mq-testing-simulator
+  
+  data:
+    mongodb:
+      uri: ${MONGO_URI:mongodb://localhost:27017/mqsim}
+      auto-index-creation: true
+  
+  thymeleaf:
+    prefix: classpath:/templates/
+    suffix: .html
+    cache: false
+    encoding: UTF-8
+    mode: HTML
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+  # RabbitMQ Configuration
+  rabbitmq:
+    host: ${RABBITMQ_HOST:localhost}
+    port: ${RABBITMQ_PORT:5672}
+    username: ${RABBITMQ_USERNAME:admin}
+    password: ${RABBITMQ_PASSWORD:passw0rd}
+    virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
+
+# MQ Configuration
+mq:
+  enabled: ${MQ_ENABLED:false}
+  default:
+    reply:
+      queue: ${DEFAULT_REPLY_QUEUE:sim.reply.default}
+
+# Logging
+logging:
+  level:
+    com.mqsim: DEBUG
+    org.springframework.jms: INFO
+    com.ibm.mq: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+# Management endpoints
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+logging:
+  level:
+    root: INFO
+    com.mqsim: INFO
