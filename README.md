@@ -1,27 +1,29 @@
 # Spring Boot MQ Testing Simulator
 
-A comprehensive Spring Boot application for simulating IBM MQ message processing with dynamic JMS listeners, configurable response mappings, and support for both XML and Mainframe (EBCDIC) message formats.
+A comprehensive Spring Boot application for simulating RabbitMQ message processing with dynamic AMQP listeners, configurable response mappings, and support for both XML and Mainframe (EBCDIC) message formats.
 
 ## 🚀 Features
 
-- **Dynamic JMS Listeners**: Automatically creates JMS listeners based on queue configurations stored in MongoDB
+- **Dynamic AMQP Listeners**: Automatically creates RabbitMQ listeners based on queue configurations stored in MongoDB
 - **Flexible Response Mappings**: Rules-based message matching with support for correlation ID patterns, headers, and body regex
-- **Multiple Message Formats**: Handles both XML (TextMessage) and Mainframe/EBCDIC (BytesMessage) responses
+- **Multiple Message Formats**: Handles both XML and Mainframe/EBCDIC message responses
+- **Configurable Response Headers**: Set response headers with fixed values or copy from request headers
 - **Configurable Delays**: Fixed and variable response delays for realistic testing scenarios
 - **Admin Web UI**: Modern htmx + TailwindCSS interface for managing queues and mappings
 - **REST API**: Complete REST endpoints for programmatic configuration
-- **Docker Ready**: Full containerization with IBM MQ Developer Edition and MongoDB
+- **Docker Ready**: Full containerization with RabbitMQ and MongoDB
 
 ## 🏗️ Architecture
 
 ```
 ┌─────────────────┐    ┌─────────────────┐    ┌─────────────────┐
-│   IBM MQ        │    │   Spring Boot   │    │   MongoDB       │
-│   (1414:1414)   │◄──►│   (8080:8080)   │◄──►│   (27017:27017) │
-│                 │    │                 │    │                 │
-│ Queue Manager:  │    │ - JMS Listeners │    │ - Queue Configs │
-│ QM1             │    │ - Match Engine  │    │ - Mappings      │
-│                 │    │ - Response Gen  │    │ - Seed Data     │
+│   RabbitMQ      │    │   Spring Boot   │    │   MongoDB       │
+│   (5672:5672)   │◄──►│   (8080:8080)   │◄──►│   (27017:27017) │
+│   (15672:15672) │    │                 │    │                 │
+│                 │    │ - AMQP Listeners│    │ - Queue Configs │
+│ - Exchanges     │    │ - Match Engine  │    │ - Mappings      │
+│ - Queues        │    │ - Response Gen  │    │ - Seed Data     │
+│ - Management UI │    │ - Header Config │    │                 │
 └─────────────────┘    └─────────────────┘    └─────────────────┘
 ```
 
@@ -40,7 +42,7 @@ A comprehensive Spring Boot application for simulating IBM MQ message processing
    docker compose up -d
    ```
 
-2. **Wait for Services** (1-2 minutes for IBM MQ to initialize):
+2. **Wait for Services** (30 seconds for RabbitMQ to initialize):
    ```bash
    # Check service health
    docker compose ps
@@ -51,23 +53,31 @@ A comprehensive Spring Boot application for simulating IBM MQ message processing
 
 3. **Access Applications**:
    - **Simulator UI**: http://localhost:8080/ui
-   - **IBM MQ Console**: https://localhost:9443 (admin/passw0rd)
+   - **RabbitMQ Management**: http://localhost:15672 (admin/passw0rd)
    - **Health Check**: http://localhost:8080/health
 
 ## 🎯 Usage Examples
 
-### 1. Testing with IBM MQ Tools
+### 1. Testing with RabbitMQ API
 
-Send a test message using IBM MQ sample programs:
+Send a test message using RabbitMQ REST API:
 
 ```bash
 # Put a message to request queue
-docker exec ibmmq /opt/mqm/samp/bin/amqsput SIM.REQUEST.Q1 QM1
-# Enter: correlation ID "OK-12345" and any message body
-# Press Enter twice to send
+curl -u admin:passw0rd -H "Content-Type: application/json" -X POST \
+  http://localhost:15672/api/exchanges/%2F/amq.default/publish \
+  -d '{
+    "properties": {
+      "correlation_id": "OK-12345",
+      "reply_to": "sim.reply.default"
+    },
+    "routing_key": "SIM.REQUEST.Q1",
+    "payload": "{\"requestId\":\"OK-12345\",\"operation\":\"test\"}",
+    "payload_encoding": "string"
+  }'
 
-# Get response from reply queue  
-docker exec ibmmq /opt/mqm/samp/bin/amqsget SIM.REPLY.DEFAULT QM1
+# Check response in reply queue via Management UI
+# Go to http://localhost:15672 -> Queues -> sim.reply.default -> Get Messages
 ```
 
 ### 2. REST API Examples
@@ -120,6 +130,7 @@ curl -X POST http://localhost:8080/admin/queues/refresh
    - Create response rules
    - Configure correlation ID patterns (regex)
    - Set XML or Mainframe response bodies
+   - Configure response headers (fixed values or copy from request)
    - Configure fixed or variable delays
 
 ## 📊 Default Seed Data
@@ -139,13 +150,14 @@ The application comes with pre-configured test data:
 
 ## 🏃‍♂️ Message Processing Flow
 
-1. **Message Arrives**: JMS listener receives message on configured queue
+1. **Message Arrives**: AMQP listener receives message on configured queue
 2. **Extract Metadata**: Correlation ID, headers, and body content extracted
 3. **Find Mapping**: Enabled mappings searched by priority (1=highest)
 4. **Pattern Matching**: Correlation ID regex, header values, and body regex evaluated
 5. **Apply Delay**: Fixed or variable delay applied before response
-6. **Generate Response**: XML (TextMessage) or MF (BytesMessage) created
-7. **Send Reply**: Response sent to JMSReplyTo destination or default reply queue
+6. **Configure Headers**: Response headers set from fixed values or copied from request
+7. **Generate Response**: XML or Mainframe/EBCDIC message created
+8. **Send Reply**: Response sent to reply-to destination or default reply queue
 
 ## 🔧 Configuration
 
@@ -153,14 +165,13 @@ The application comes with pre-configured test data:
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `MQ_HOST` | `ibmmq` | IBM MQ hostname |
-| `MQ_PORT` | `1414` | IBM MQ port |
-| `MQ_QMGR` | `QM1` | Queue Manager name |
-| `MQ_CHANNEL` | `DEV.APP.SVRCONN` | Server connection channel |
-| `MQ_USER` | `app` | MQ user |
-| `MQ_PASSWORD` | `passw0rd` | MQ password |
+| `RABBITMQ_HOST` | `localhost` | RabbitMQ hostname |
+| `RABBITMQ_PORT` | `5672` | RabbitMQ AMQP port |
+| `RABBITMQ_USERNAME` | `admin` | RabbitMQ username |
+| `RABBITMQ_PASSWORD` | `passw0rd` | RabbitMQ password |
 | `MONGO_URI` | `mongodb://mongo:27017/mqsim` | MongoDB connection string |
-| `DEFAULT_REPLY_QUEUE` | `SIM.REPLY.DEFAULT` | Default reply queue name |
+| `MQ_ENABLED` | `true` | Enable/disable MQ functionality |
+| `MQ_DEFAULT_REPLY_QUEUE` | `sim.reply.default` | Default reply queue name |
 
 ### Queue Configuration Format
 
@@ -188,7 +199,16 @@ The application comes with pre-configured test data:
     "type": "XML",                               // XML or MF
     "xmlBody": "<status>OK</status>",            // For XML responses
     "mfBodyBase64": "BASE64_ENCODED_EBCDIC",     // For MF responses
-    "headers": {"Content-Type": "application/xml"},
+    "headerConfigs": {                           // Configurable headers
+      "X-Source": {
+        "source": "FIXED",
+        "fixedValue": "MQ_SIMULATOR"
+      },
+      "X-Request-ID": {
+        "source": "COPY_FROM_REQUEST", 
+        "requestHeaderName": "X-Original-ID"
+      }
+    },
     "overrideCorrelationId": "CUSTOM-ID"        // Optional
   },
   "delay": {
@@ -208,7 +228,7 @@ cd backend
 mvn test
 ```
 
-### Integration Testing with Real MQ
+### Integration Testing with RabbitMQ
 ```bash
 # Start services
 docker compose up -d
@@ -216,39 +236,53 @@ docker compose up -d
 # Wait for readiness
 curl http://localhost:8080/ready
 
-# Send test message via MQ tools
-docker exec ibmmq /opt/mqm/samp/bin/amqsput SIM.REQUEST.Q1 QM1
+# Send test message via RabbitMQ API
+curl -u admin:passw0rd -H "Content-Type: application/json" -X POST \
+  http://localhost:15672/api/exchanges/%2F/amq.default/publish \
+  -d '{
+    "properties": {"correlation_id": "TEST-123", "reply_to": "sim.reply.default"},
+    "routing_key": "SIM.REQUEST.Q1",
+    "payload": "test message",
+    "payload_encoding": "string"
+  }'
 
-# Check response
-docker exec ibmmq /opt/mqm/samp/bin/amqsget SIM.REPLY.DEFAULT QM1
+# Check response via Management UI
+# http://localhost:15672 -> Queues -> sim.reply.default
 ```
 
 ### Load Testing
 ```bash
-# Send multiple messages in parallel
+# Send multiple messages in parallel using RabbitMQ API
 for i in {1..10}; do
-  echo "OK-$i" | docker exec -i ibmmq /opt/mqm/samp/bin/amqsput SIM.REQUEST.Q1 QM1 &
+  curl -s -u admin:passw0rd -H "Content-Type: application/json" -X POST \
+    http://localhost:15672/api/exchanges/%2F/amq.default/publish \
+    -d "{
+      \"properties\": {\"correlation_id\": \"OK-$i\", \"reply_to\": \"sim.reply.default\"},
+      \"routing_key\": \"SIM.REQUEST.Q1\",
+      \"payload\": \"load test message $i\",
+      \"payload_encoding\": \"string\"
+    }" &
 done
 wait
 
-# Check all responses
-docker exec ibmmq /opt/mqm/samp/bin/amqsbcg SIM.REPLY.DEFAULT QM1
+# Check response queue depth
+curl -s -u admin:passw0rd http://localhost:15672/api/queues/%2F/sim.reply.default | jq .messages
 ```
 
 ## 🚨 Troubleshooting
 
 ### Common Issues
 
-1. **MQ Connection Failures**:
+1. **RabbitMQ Connection Failures**:
    ```bash
-   # Check MQ container logs
-   docker logs ibmmq
+   # Check RabbitMQ container logs
+   docker logs rabbitmq
    
-   # Verify queue manager is running
-   docker exec ibmmq dspmq
+   # Verify RabbitMQ is running
+   curl -u admin:passw0rd http://localhost:15672/api/overview
    
-   # Check channel status
-   docker exec ibmmq runmqsc QM1 <<< "DISPLAY CHANNEL(DEV.APP.SVRCONN)"
+   # Check queue status
+   curl -u admin:passw0rd http://localhost:15672/api/queues
    ```
 
 2. **No Listeners Starting**:
@@ -261,6 +295,9 @@ docker exec ibmmq /opt/mqm/samp/bin/amqsbcg SIM.REPLY.DEFAULT QM1
    
    # Refresh listeners manually
    curl -X POST http://localhost:8080/admin/queues/refresh
+   
+   # Check if MQ is enabled
+   curl http://localhost:8080/health
    ```
 
 3. **Messages Not Matching**:
@@ -269,19 +306,23 @@ docker exec ibmmq /opt/mqm/samp/bin/amqsbcg SIM.REPLY.DEFAULT QM1
    curl http://localhost:8080/admin/mappings
    
    # Check application logs
-   docker logs mqsim-backend
+   docker logs spring-boot-mq-simulator-backend-1
    
    # Verify correlation ID patterns
    # Use tools like regex101.com to test patterns
    ```
 
-4. **Queue Not Found Errors**:
+4. **Queue Auto-Creation Issues**:
    ```bash
-   # Create missing queues in MQ
-   docker exec ibmmq runmqsc QM1 <<< "
-   DEFINE QLOCAL(SIM.REQUEST.Q1) MAXDEPTH(5000)
-   DEFINE QLOCAL(SIM.REPLY.DEFAULT) MAXDEPTH(5000)
-   "
+   # Queues are created automatically by Spring AMQP
+   # Check RabbitMQ Management UI for queue list
+   # http://localhost:15672/#/queues
+   
+   # Manually create queue if needed via API
+   curl -u admin:passw0rd -X PUT \
+     http://localhost:15672/api/queues/%2F/SIM.REQUEST.Q1 \
+     -H "Content-Type: application/json" \
+     -d '{"durable": true}'
    ```
 
 ### Debug Mode
@@ -296,7 +337,7 @@ docker compose up backend
 
 - **Application**: http://localhost:8080/health
 - **Readiness**: http://localhost:8080/ready  
-- **MQ Console**: https://localhost:9443 (admin/passw0rd)
+- **RabbitMQ Management**: http://localhost:15672 (admin/passw0rd)
 - **Listener Status**: http://localhost:8080/admin/queues/status
 
 ## 📁 Project Structure
@@ -312,9 +353,9 @@ spring-boot-mq-simulator/
         ├── main/
         │   ├── java/com/mqsim/
         │   │   ├── MqTestingSimulatorApplication.java
-        │   │   ├── config/         # MQ and Spring configuration
+        │   │   ├── config/         # RabbitMQ and Spring configuration
         │   │   ├── controller/     # REST APIs and UI controllers
-        │   │   ├── listener/       # Dynamic JMS message listener
+        │   │   ├── listener/       # Dynamic AMQP message listener
         │   │   ├── model/          # MongoDB entities
         │   │   ├── repository/     # MongoDB repositories
         │   │   └── service/        # Business logic services
@@ -338,7 +379,8 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## 🔗 Related Resources
 
-- [IBM MQ Documentation](https://www.ibm.com/docs/en/ibm-mq)
-- [Spring JMS Reference](https://docs.spring.io/spring-framework/docs/current/reference/html/integration.html#jms)
+- [RabbitMQ Documentation](https://www.rabbitmq.com/documentation.html)
+- [Spring AMQP Reference](https://docs.spring.io/spring-amqp/docs/current/reference/html/)
+- [Spring Boot AMQP](https://docs.spring.io/spring-boot/docs/current/reference/html/messaging.html#messaging.amqp)
 - [HTMX Documentation](https://htmx.org/docs/)
 - [TailwindCSS Documentation](https://tailwindcss.com/docs)
