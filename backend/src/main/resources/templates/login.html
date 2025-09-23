@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - MQ Testing Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex items-center justify-center">
+    <div class="max-w-md w-full space-y-8">
+        <div>
+            <h2 class="mt-6 text-center text-3xl font-extrabold text-gray-900">
+                MQ Testing Simulator
+            </h2>
+            <p class="mt-2 text-center text-sm text-gray-600">
+                Sign in to your account
+            </p>
+        </div>
+        
+        <!-- Success Messages -->
+        <div th:if="${message}" class="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded">
+            <span th:text="${message}"></span>
+        </div>
+        
+        <!-- Error Messages -->
+        <div th:if="${error}" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
+            <span th:text="${error}"></span>
+        </div>
+        
+        <form class="mt-8 space-y-6" method="post" th:action="@{/login}">
+            <div class="rounded-md shadow-sm -space-y-px">
+                <div>
+                    <label for="userId" class="sr-only">Username</label>
+                    <input id="userId" name="userId" type="text" required
+                           class="relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-green-500 focus:border-green-500 focus:z-10 sm:text-sm"
+                           placeholder="Username">
+                </div>
+                <div>
+                    <label for="password" class="sr-only">Password</label>
+                    <input id="password" name="password" type="password" required
+                           class="relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-green-500 focus:border-green-500 focus:z-10 sm:text-sm"
+                           placeholder="Password">
+                </div>
+            </div>
+
+            <div>
+                <button type="submit"
+                        class="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500">
+                    Sign in
+                </button>
+            </div>
+            
+            <div class="text-center">
+                <a th:href="@{/register}" class="font-medium text-green-600 hover:text-green-500">
+                    Don't have an account? Sign up
+                </a>
+            </div>
+        </form>
+        
+        <!-- Demo Credentials -->
+        <div class="mt-8 bg-green-50 border border-green-200 rounded-lg p-4">
+            <h3 class="text-sm font-medium text-green-800 mb-2">Demo Credentials:</h3>
+            <div class="text-xs text-green-700 space-y-1">
+                <div><strong>Admin:</strong> admin / admin123</div>
+                <div><strong>Demo:</strong> demo / demo123</div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

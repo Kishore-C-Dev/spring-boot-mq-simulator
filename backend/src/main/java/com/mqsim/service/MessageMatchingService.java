@@ -1,9 +1,13 @@
 package com.mqsim.service;
 
 import com.mqsim.model.ResponseMapping;
+import com.mqsim.model.MainframeMatchingRule;
+import com.mqsim.model.XPathMatchingRule;
+import com.mqsim.model.JsonPathMatchingRule;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.amqp.core.Message;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
@@ -16,6 +20,15 @@ import java.util.regex.Pattern;
 public class MessageMatchingService {
 
     private static final Logger logger = LoggerFactory.getLogger(MessageMatchingService.class);
+    
+    @Autowired
+    private MainframeMessageProcessor mainframeMessageProcessor;
+    
+    @Autowired
+    private XPathMessageProcessor xPathMessageProcessor;
+    
+    @Autowired
+    private JsonPathMessageProcessor jsonPathMessageProcessor;
 
     public boolean matches(Message message, ResponseMapping mapping) {
         try {
@@ -29,8 +42,13 @@ public class MessageMatchingService {
                 return false;
             }
 
-            // Check body pattern
+            // Check body pattern (for legacy regex matching)
             if (!matchesBody(message, mapping)) {
+                return false;
+            }
+
+            // Check content-specific matching based on response type
+            if (!matchesContentSpecific(message, mapping)) {
                 return false;
             }
 
@@ -125,6 +143,92 @@ public class MessageMatchingService {
 
         } catch (Exception e) {
             logger.warn("Error matching body pattern: {}", pattern, e);
+            return false;
+        }
+    }
+
+    private boolean matchesContentSpecific(Message message, ResponseMapping mapping) {
+        try {
+            ResponseMapping.ResponseConfig.ResponseType responseType = mapping.getResponse().getType();
+            byte[] messageBytes = message.getBody();
+            
+            if (messageBytes == null || messageBytes.length == 0) {
+                logger.debug("Message body is null or empty for content-specific matching");
+                return true; // No content to match against
+            }
+
+            switch (responseType) {
+                case XML:
+                    return matchesXPath(messageBytes, mapping);
+                case JSON:
+                    return matchesJsonPath(messageBytes, mapping);
+                case MAINFRAME:
+                    return matchesMainframe(messageBytes, mapping);
+                default:
+                    return true; // No specific matching required
+            }
+            
+        } catch (Exception e) {
+            logger.error("Error during content-specific message matching", e);
+            return false;
+        }
+    }
+    
+    private boolean matchesXPath(byte[] messageBytes, ResponseMapping mapping) {
+        try {
+            logger.debug("Processing XPath message matching");
+            
+            boolean matches = xPathMessageProcessor.processMessage(
+                messageBytes, 
+                mapping.getMatch().getXpathRules()
+            );
+            
+            logger.debug("XPath message matching result: {}", matches);
+            return matches;
+            
+        } catch (Exception e) {
+            logger.error("Error during XPath message matching", e);
+            return false;
+        }
+    }
+    
+    private boolean matchesJsonPath(byte[] messageBytes, ResponseMapping mapping) {
+        try {
+            logger.debug("Processing JSONPath message matching");
+            
+            boolean matches = jsonPathMessageProcessor.processMessage(
+                messageBytes, 
+                mapping.getMatch().getJsonPathRules()
+            );
+            
+            logger.debug("JSONPath message matching result: {}", matches);
+            return matches;
+            
+        } catch (Exception e) {
+            logger.error("Error during JSONPath message matching", e);
+            return false;
+        }
+    }
+
+    private boolean matchesMainframe(byte[] messageBytes, ResponseMapping mapping) {
+        try {
+            logger.debug("Processing mainframe message matching");
+
+            // Get mainframe matching rules and charset from match criteria
+            String charset = mapping.getMatch().getCharset();
+            
+            // Use mainframe processor to check if message matches the rules
+            boolean matches = mainframeMessageProcessor.processMessage(
+                messageBytes, 
+                mapping.getMatch().getMainframeRules(), 
+                charset
+            );
+            
+            logger.debug("Mainframe message matching result: {}", matches);
+            return matches;
+            
+        } catch (Exception e) {
+            logger.error("Error during mainframe message matching", e);
             return false;
         }
     }

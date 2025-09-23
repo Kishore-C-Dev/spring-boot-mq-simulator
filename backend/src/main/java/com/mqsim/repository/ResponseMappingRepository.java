@@ -10,6 +10,18 @@ import java.util.List;
 @Repository
 public interface ResponseMappingRepository extends MongoRepository<ResponseMapping, String> {
     
+    // Namespace-aware queries
+    List<ResponseMapping> findByNamespaceAndQueueNameAndEnabledTrueOrderByPriorityAsc(String namespace, String queueName);
+    
+    List<ResponseMapping> findByNamespaceAndQueueName(String namespace, String queueName);
+    
+    List<ResponseMapping> findByNamespaceOrderByQueueNameAscPriorityAsc(String namespace);
+    
+    List<ResponseMapping> findByNamespace(String namespace);
+    
+    long countByNamespaceAndQueueName(String namespace, String queueName);
+    
+    // Legacy queries (for backward compatibility and migration)
     List<ResponseMapping> findByQueueNameAndEnabledTrueOrderByPriorityAsc(String queueName);
     
     List<ResponseMapping> findByQueueName(String queueName);

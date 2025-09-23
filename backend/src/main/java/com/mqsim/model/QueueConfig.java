@@ -16,8 +16,11 @@ public class QueueConfig {
     @Id
     private String id;
     
+    @NotBlank(message = "Namespace is required")
+    private String namespace;
+    
     @NotBlank(message = "Queue name is required")
-    @Indexed(unique = true)
+    @Indexed
     private String queueName;
     
     @NotBlank(message = "Concurrency is required")
@@ -36,8 +39,9 @@ public class QueueConfig {
         this.createdAt = Instant.now();
     }
     
-    public QueueConfig(String queueName, String concurrency, Boolean enabled) {
+    public QueueConfig(String namespace, String queueName, String concurrency, Boolean enabled) {
         this();
+        this.namespace = namespace;
         this.queueName = queueName;
         this.concurrency = concurrency;
         this.enabled = enabled;
@@ -46,6 +50,9 @@ public class QueueConfig {
     // Getters and setters
     public String getId() { return id; }
     public void setId(String id) { this.id = id; }
+    
+    public String getNamespace() { return namespace; }
+    public void setNamespace(String namespace) { this.namespace = namespace; }
     
     public String getQueueName() { return queueName; }
     public void setQueueName(String queueName) { this.queueName = queueName; }

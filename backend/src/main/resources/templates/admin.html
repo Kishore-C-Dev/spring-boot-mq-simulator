@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Admin Dashboard - MQ Testing Simulator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .spinner { border: 2px solid #f3f3f3; border-top: 2px solid #3498db; border-radius: 50%; width: 16px; height: 16px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-100">
+    <!-- Main Navigation (minimalist white design) -->
+    <nav class="bg-white border-b border-gray-200 shadow-sm">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center space-x-8">
+                    <a th:href="@{/ui}" class="text-xl font-semibold text-gray-900">MQ Testing Simulator</a>
+                    <div class="hidden md:flex space-x-1">
+                        <a th:href="@{/ui}" class="text-gray-600 hover:text-gray-900 hover:bg-gray-50 px-3 py-2 rounded-md text-sm transition-colors">Dashboard</a>
+
+                        <!-- Admin Menu (only for admin users) -->
+                        <div th:if="${currentUser != null && currentUser.role == 'admin'}" class="relative">
+                            <button id="adminMenuButton"
+                                    class="text-gray-900 bg-gray-100 px-3 py-2 rounded-md text-sm transition-colors flex items-center space-x-1"
+                                    onclick="toggleAdminMenu()">
+                                <span>Admin</span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            <div id="adminMenu"
+                                 class="hidden absolute right-0 mt-2 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                                <div class="py-1">
+                                    <a th:href="@{/admin/ui}"
+                                       class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 transition-colors">
+                                        <div class="flex items-center space-x-2">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-.5a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"></path>
+                                            </svg>
+                                            <span>Admin Dashboard</span>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex items-center space-x-4">
+                    <!-- User Menu -->
+                    <div th:if="${currentUser}">
+                        <a th:href="@{/logout}"
+                           class="text-gray-600 hover:text-gray-900 border border-gray-300 hover:border-gray-400 px-3 py-1.5 rounded-md text-sm transition-colors">
+                            Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Secondary Admin Navigation -->
+    <div class="bg-gray-50 border-b border-gray-200">
+        <div class="container mx-auto px-4">
+            <div class="flex items-center space-x-1 py-3">
+                <span class="text-gray-500 text-sm font-medium mr-4">Admin Panel:</span>
+                <a onclick="showTab('users')"
+                   class="text-gray-600 hover:text-gray-900 hover:bg-white px-3 py-1.5 rounded-md text-sm transition-colors cursor-pointer admin-tab-btn border border-transparent hover:border-gray-200"
+                   data-tab="users">
+                    Users
+                </a>
+                <a onclick="showTab('namespaces')"
+                   class="text-gray-600 hover:text-gray-900 hover:bg-white px-3 py-1.5 rounded-md text-sm transition-colors cursor-pointer admin-tab-btn border border-transparent hover:border-gray-200"
+                   data-tab="namespaces">
+                    Namespaces
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="container mx-auto px-4 py-8">
+
+        <!-- Welcome Section -->
+        <div class="bg-white rounded-lg border border-gray-200 p-6 mb-8">
+            <h1 class="text-2xl font-semibold text-gray-900 mb-2">Admin Dashboard</h1>
+            <p class="text-gray-600 mb-4">Manage users, namespaces, and system configuration</p>
+            <div class="flex space-x-4 text-sm">
+                <span class="bg-gray-100 text-gray-700 px-3 py-1 rounded-md">Admin Panel</span>
+                <span class="bg-blue-50 text-blue-700 px-3 py-1 rounded-md">Users: <span th:text="${users.size()}"></span></span>
+                <span class="bg-green-50 text-green-700 px-3 py-1 rounded-md">Namespaces: <span th:text="${namespaces.size()}"></span></span>
+            </div>
+        </div>
+
+        <!-- Tab Content -->
+        <div class="bg-white rounded-lg border border-gray-200">
+
+            <!-- Users Management Tab -->
+            <div id="users-content" class="p-6">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-semibold text-gray-800">User Management</h2>
+                    <button onclick="showCreateUserModal()" class="bg-gray-900 hover:bg-gray-800 text-white px-4 py-2 rounded-md text-sm transition-colors">
+                        Add New User
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full table-auto">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">User ID</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Role</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Namespaces</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="users-table-body" class="bg-white divide-y divide-gray-200">
+                            <tr th:each="user : ${users}">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" th:text="${user.userId}"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" th:text="${user.email}"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" th:text="${user.firstName} + ' ' + ${user.lastName}"></td>
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full"
+                                          th:classappend="${user.role == 'admin'} ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'"
+                                          th:text="${user.role}"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <div class="flex flex-wrap gap-1">
+                                        <span th:each="ns : ${user.namespaces}"
+                                              class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded"
+                                              th:text="${ns}"></span>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <button class="text-blue-600 hover:text-blue-900 mr-2 edit-user-btn"
+                                            th:data-user-id="${user.userId}">Edit</button>
+                                    <button th:unless="${user.userId == 'admin'}"
+                                            class="text-red-600 hover:text-red-900 delete-user-btn"
+                                            th:data-user-id="${user.userId}">Delete</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Namespaces Management Tab -->
+            <div id="namespaces-content" class="p-6 hidden">
+                <div class="flex justify-between items-center mb-6">
+                    <h2 class="text-xl font-semibold text-gray-800">Namespace Management</h2>
+                    <button onclick="showCreateNamespaceModal()" class="bg-gray-900 hover:bg-gray-800 text-white px-4 py-2 rounded-md text-sm transition-colors">
+                        Add New Namespace
+                    </button>
+                </div>
+
+                <div class="overflow-x-auto">
+                    <table class="min-w-full table-auto">
+                        <thead>
+                            <tr class="bg-gray-50">
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Display Name</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Members</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>
+                                <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="namespaces-table-body" class="bg-white divide-y divide-gray-200">
+                            <tr th:each="namespace : ${namespaces}">
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900" th:text="${namespace.name}"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" th:text="${namespace.displayName}"></td>
+                                <td class="px-6 py-4 text-sm text-gray-500" th:text="${namespace.description}"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                                    <div class="flex flex-wrap gap-1">
+                                        <span th:each="member : ${namespace.members}"
+                                              class="bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded"
+                                              th:text="${member}"></span>
+                                    </div>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500" th:text="${#temporals.format(namespace.createdAt, 'yyyy-MM-dd HH:mm')}"></td>
+                                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                                    <button class="text-blue-600 hover:text-blue-900 mr-2 edit-namespace-btn"
+                                            th:data-namespace-name="${namespace.name}">Edit</button>
+                                    <button th:unless="${namespace.name == 'default'}"
+                                            class="text-red-600 hover:text-red-900 delete-namespace-btn"
+                                            th:data-namespace-name="${namespace.name}">Delete</button>
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        function toggleAdminMenu() {
+            const menu = document.getElementById('adminMenu');
+            menu.classList.toggle('hidden');
+        }
+
+        function showTab(tab) {
+            // Hide all tabs
+            document.getElementById('users-content').classList.add('hidden');
+            document.getElementById('namespaces-content').classList.add('hidden');
+
+            // Show selected tab
+            document.getElementById(tab + '-content').classList.remove('hidden');
+
+            // Update active state of secondary nav items
+            document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+                btn.classList.remove('bg-white', 'border-gray-200', 'text-gray-900');
+                btn.classList.add('border-transparent', 'text-gray-600');
+            });
+            const activeBtn = document.querySelector(`[data-tab="${tab}"]`);
+            activeBtn.classList.remove('border-transparent', 'text-gray-600');
+            activeBtn.classList.add('bg-white', 'border-gray-200', 'text-gray-900');
+        }
+
+
+        function editUser(userId) {
+            alert('Edit user functionality will be implemented');
+        }
+
+        function deleteUser(userId) {
+            if (confirm('Are you sure you want to delete user: ' + userId + '?')) {
+                fetch('/admin/users/' + userId, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                    } else {
+                        location.reload();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to delete user');
+                });
+            }
+        }
+
+        function editNamespace(namespaceName) {
+            alert('Edit namespace functionality will be implemented');
+        }
+
+        function deleteNamespace(namespaceName) {
+            if (confirm('Are you sure you want to delete namespace: ' + namespaceName + '?')) {
+                fetch('/admin/namespaces/' + namespaceName, {
+                    method: 'DELETE'
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.error) {
+                        alert('Error: ' + data.error);
+                    } else {
+                        location.reload();
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Failed to delete namespace');
+                });
+            }
+        }
+
+        function showCreateUserModal() {
+            alert('Create user modal will be implemented');
+        }
+
+        function showCreateNamespaceModal() {
+            alert('Create namespace modal will be implemented');
+        }
+
+        // Load users tab by default
+        document.addEventListener('DOMContentLoaded', function() {
+            showTab('users');
+
+            // Add event listeners for user buttons
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('edit-user-btn')) {
+                    const userId = e.target.getAttribute('data-user-id');
+                    editUser(userId);
+                } else if (e.target.classList.contains('delete-user-btn')) {
+                    const userId = e.target.getAttribute('data-user-id');
+                    deleteUser(userId);
+                } else if (e.target.classList.contains('edit-namespace-btn')) {
+                    const namespaceName = e.target.getAttribute('data-namespace-name');
+                    editNamespace(namespaceName);
+                } else if (e.target.classList.contains('delete-namespace-btn')) {
+                    const namespaceName = e.target.getAttribute('data-namespace-name');
+                    deleteNamespace(namespaceName);
+                }
+
+                // Close admin menu when clicking outside
+                if (!e.target.closest('#adminMenuButton') && !e.target.closest('#adminMenu')) {
+                    const adminMenu = document.getElementById('adminMenu');
+                    if (adminMenu) {
+                        adminMenu.classList.add('hidden');
+                    }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

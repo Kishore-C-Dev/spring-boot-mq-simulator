@@ -42,10 +42,10 @@ public class DataSeederService implements CommandLineRunner {
 
         logger.info("Seeding queue configurations...");
 
-        // Create queue configurations
-        QueueConfig q1 = new QueueConfig("SIM.REQUEST.Q1", "2-5", true);
-        QueueConfig q2 = new QueueConfig("SIM.REQUEST.Q2", "1-3", true);
-        QueueConfig q3 = new QueueConfig("SIM.REQUEST.Q3", "1", false);
+        // Create queue configurations with default namespace
+        QueueConfig q1 = new QueueConfig("default", "SIM.REQUEST.Q1", "2-5", true);
+        QueueConfig q2 = new QueueConfig("default", "SIM.REQUEST.Q2", "1-3", true);
+        QueueConfig q3 = new QueueConfig("default", "SIM.REQUEST.Q3", "1", false);
 
         queueConfigRepository.save(q1);
         queueConfigRepository.save(q2);
@@ -108,7 +108,7 @@ public class DataSeederService implements CommandLineRunner {
     }
 
     private ResponseMapping createXmlMapping(String queueName, String correlationId, String xmlBody, Integer fixedMs, int priority) {
-        ResponseMapping mapping = new ResponseMapping();
+        ResponseMapping mapping = new ResponseMapping("default");
         mapping.setQueueName(queueName);
         mapping.setPriority(priority);
         mapping.setEnabled(true);
@@ -135,7 +135,7 @@ public class DataSeederService implements CommandLineRunner {
     }
 
     private ResponseMapping createMfMapping(String queueName, String correlationId, String mfBodyBase64, Integer fixedMs, int priority) {
-        ResponseMapping mapping = new ResponseMapping();
+        ResponseMapping mapping = new ResponseMapping("default");
         mapping.setQueueName(queueName);
         mapping.setPriority(priority);
         mapping.setEnabled(true);
@@ -147,8 +147,10 @@ public class DataSeederService implements CommandLineRunner {
 
         // Response configuration
         ResponseMapping.ResponseConfig response = new ResponseMapping.ResponseConfig();
-        response.setType(ResponseMapping.ResponseConfig.ResponseType.MF);
-        response.setMfBodyBase64(mfBodyBase64);
+        response.setType(ResponseMapping.ResponseConfig.ResponseType.MAINFRAME);
+        response.setMainframeSuccessBody(createSampleEbcdicBase64());
+        response.setMainframeErrorBody("RVJST1I6IE1haW5mcmFtZSBmYWlsdXJl"); // Base64 for "ERROR: Mainframe failure"
+        response.setMainframeCharset("UTF-8");
         mapping.setResponse(response);
 
         // Delay configuration
