@@ -46,11 +46,14 @@ public class ResponseMapping {
     private Instant updatedAt;
     
     private Instant createdAt;
-    
+
+    private boolean deleted = false;
+
     public ResponseMapping() {
         this.createdAt = Instant.now();
         this.enabled = true;
         this.priority = 5;
+        this.deleted = false;
     }
     
     public ResponseMapping(String namespace) {
@@ -88,7 +91,10 @@ public class ResponseMapping {
     
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
-    
+
+    public boolean isDeleted() { return deleted; }
+    public void setDeleted(boolean deleted) { this.deleted = deleted; }
+
     // Inner classes
     public static class MatchCriteria {
         private String correlationId;

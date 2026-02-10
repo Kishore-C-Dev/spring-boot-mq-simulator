@@ -196,6 +196,47 @@
         </div>
     </div>
 
+    <!-- Create Namespace Modal -->
+    <div id="createNamespaceModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full hidden">
+        <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div class="mt-3">
+                <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-blue-100">
+                    <svg class="h-6 w-6 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                </div>
+                <div class="mt-2 text-center">
+                    <h3 class="text-lg leading-6 font-medium text-gray-900">Create New Namespace</h3>
+                    <div class="mt-4">
+                        <form id="createNamespaceForm">
+                            <div class="mb-4">
+                                <label for="namespaceName" class="block text-sm font-medium text-gray-700 text-left">Namespace Name</label>
+                                <input type="text" id="namespaceName" name="namespaceName"
+                                       class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                                       required>
+                            </div>
+                            <div class="mb-4">
+                                <label for="namespaceDescription" class="block text-sm font-medium text-gray-700 text-left">Description</label>
+                                <textarea id="namespaceDescription" name="namespaceDescription" rows="3"
+                                          class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"></textarea>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                <div class="items-center px-4 py-3">
+                    <button id="createNamespaceBtn"
+                            class="px-4 py-2 bg-blue-500 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300">
+                        Create Namespace
+                    </button>
+                    <button id="cancelCreateNamespace"
+                            class="mt-3 px-4 py-2 bg-gray-300 text-gray-800 text-base font-medium rounded-md w-full shadow-sm hover:bg-gray-400 focus:outline-none focus:ring-2 focus:ring-gray-300">
+                        Cancel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- JavaScript -->
     <script>
         function toggleAdminMenu() {
@@ -275,12 +316,71 @@
         }
 
         function showCreateNamespaceModal() {
-            alert('Create namespace modal will be implemented');
+            document.getElementById('createNamespaceModal').classList.remove('hidden');
+            document.getElementById('namespaceName').focus();
+        }
+
+        function hideCreateNamespaceModal() {
+            document.getElementById('createNamespaceModal').classList.add('hidden');
+            document.getElementById('createNamespaceForm').reset();
+        }
+
+        function createNamespace() {
+            const form = document.getElementById('createNamespaceForm');
+            const formData = new FormData(form);
+
+            const namespaceData = {
+                name: formData.get('namespaceName'),
+                description: formData.get('namespaceDescription')
+            };
+
+            if (!namespaceData.name || namespaceData.name.trim() === '') {
+                alert('Namespace name is required');
+                return;
+            }
+
+            fetch('/admin/namespaces', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(namespaceData)
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert('Error: ' + data.error);
+                } else {
+                    hideCreateNamespaceModal();
+                    location.reload(); // Refresh to show the new namespace
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to create namespace');
+            });
         }
 
         // Load users tab by default
         document.addEventListener('DOMContentLoaded', function() {
             showTab('users');
+
+            // Add event listeners for modal buttons
+            document.getElementById('createNamespaceBtn').addEventListener('click', createNamespace);
+            document.getElementById('cancelCreateNamespace').addEventListener('click', hideCreateNamespaceModal);
+
+            // Close modal when clicking outside
+            document.getElementById('createNamespaceModal').addEventListener('click', function(e) {
+                if (e.target === this) {
+                    hideCreateNamespaceModal();
+                }
+            });
+
+            // Handle form submission with Enter key
+            document.getElementById('createNamespaceForm').addEventListener('submit', function(e) {
+                e.preventDefault();
+                createNamespace();
+            });
 
             // Add event listeners for user buttons
             document.addEventListener('click', function(e) {

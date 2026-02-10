@@ -34,9 +34,12 @@ public class QueueConfig {
     private Instant updatedAt;
     
     private Instant createdAt;
-    
+
+    private boolean deleted = false;
+
     public QueueConfig() {
         this.createdAt = Instant.now();
+        this.deleted = false;
     }
     
     public QueueConfig(String namespace, String queueName, String concurrency, Boolean enabled) {
@@ -68,7 +71,10 @@ public class QueueConfig {
     
     public Instant getCreatedAt() { return createdAt; }
     public void setCreatedAt(Instant createdAt) { this.createdAt = createdAt; }
-    
+
+    public boolean isDeleted() { return deleted; }
+    public void setDeleted(boolean deleted) { this.deleted = deleted; }
+
     @Override
     public String toString() {
         return "QueueConfig{" +

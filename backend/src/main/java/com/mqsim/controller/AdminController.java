@@ -4,6 +4,7 @@ import com.mqsim.model.UserProfile;
 import com.mqsim.model.Namespace;
 import com.mqsim.repository.UserProfileRepository;
 import com.mqsim.repository.NamespaceRepository;
+import com.mqsim.repository.QueueConfigRepository;
 import com.mqsim.service.SessionManager;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -24,14 +25,17 @@ public class AdminController {
 
     private final UserProfileRepository userProfileRepository;
     private final NamespaceRepository namespaceRepository;
+    private final QueueConfigRepository queueConfigRepository;
     private final SessionManager sessionManager;
 
     @Autowired
     public AdminController(UserProfileRepository userProfileRepository,
                           NamespaceRepository namespaceRepository,
+                          QueueConfigRepository queueConfigRepository,
                           SessionManager sessionManager) {
         this.userProfileRepository = userProfileRepository;
         this.namespaceRepository = namespaceRepository;
+        this.queueConfigRepository = queueConfigRepository;
         this.sessionManager = sessionManager;
     }
 
@@ -66,7 +70,7 @@ public class AdminController {
             return ResponseEntity.status(403).body(Map.of("error", "Admin access required"));
         }
 
-        List<UserProfile> users = userProfileRepository.findAll();
+        List<UserProfile> users = userProfileRepository.findAllActiveUsers();
         return ResponseEntity.ok(users);
     }
 
@@ -171,7 +175,9 @@ public class AdminController {
             return ResponseEntity.badRequest().body(Map.of("error", "Cannot delete admin user"));
         }
 
-        userProfileRepository.delete(user.get());
+        UserProfile userToDelete = user.get();
+        userToDelete.setDeleted(true);
+        userProfileRepository.save(userToDelete);
         return ResponseEntity.ok(Map.of("message", "User deleted successfully"));
     }
 
@@ -181,7 +187,7 @@ public class AdminController {
             return ResponseEntity.status(403).body(Map.of("error", "Admin access required"));
         }
 
-        List<Namespace> namespaces = namespaceRepository.findAll();
+        List<Namespace> namespaces = namespaceRepository.findAllActiveNamespaces();
         return ResponseEntity.ok(namespaces);
     }
 
@@ -272,7 +278,9 @@ public class AdminController {
             return ResponseEntity.badRequest().body(Map.of("error", "Cannot delete default namespace"));
         }
 
-        namespaceRepository.delete(namespace.get());
+        Namespace namespaceToDelete = namespace.get();
+        namespaceToDelete.setDeleted(true);
+        namespaceRepository.save(namespaceToDelete);
         return ResponseEntity.ok(Map.of("message", "Namespace deleted successfully"));
     }
 
@@ -293,6 +301,33 @@ public class AdminController {
             return hexString.toString();
         } catch (Exception e) {
             throw new RuntimeException("Error hashing password", e);
+        }
+    }
+
+    @PostMapping("/fix-queue-ids")
+    public ResponseEntity<?> fixQueueIds(HttpSession session) {
+        if (!isAdminUser(session)) {
+            return ResponseEntity.status(403).body(Map.of("error", "Admin access required"));
+        }
+
+        try {
+            // Get all queues from the collection including those with missing id mapping
+            List<com.mqsim.model.QueueConfig> allQueues = queueConfigRepository.findAll();
+            int fixedCount = 0;
+
+            for (com.mqsim.model.QueueConfig queue : allQueues) {
+                // Re-save each queue to ensure proper ID mapping
+                com.mqsim.model.QueueConfig savedQueue = queueConfigRepository.save(queue);
+                System.out.println("Fixed queue: " + savedQueue.getQueueName() + " with ID: " + savedQueue.getId());
+                fixedCount++;
+            }
+
+            return ResponseEntity.ok(Map.of(
+                "message", "Fixed queue ID mapping",
+                "fixedQueues", fixedCount
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Error fixing queue IDs: " + e.getMessage()));
         }
     }
 }

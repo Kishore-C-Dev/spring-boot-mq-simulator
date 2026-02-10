@@ -1,23 +1,25 @@
 services:
-  rabbitmq:
-    image: rabbitmq:3.13-management
-    container_name: rabbitmq
+  ibmmq:
+    image: icr.io/ibm-messaging/mq:latest
+    container_name: ibmmq
     ports:
-      - "5672:5672"   # AMQP port
-      - "15672:15672" # Management UI
+      - "1414:1414"   # MQ listener
+      - "9443:9443"   # Web console
     environment:
-      - RABBITMQ_DEFAULT_USER=admin
-      - RABBITMQ_DEFAULT_PASS=passw0rd
+      - LICENSE=accept
+      - MQ_QMGR_NAME=QM1
+      - MQ_APP_PASSWORD=admin
+      - MQ_ADMIN_PASSWORD=admin
     volumes:
-      - rabbitmq_data:/var/lib/rabbitmq
+      - ibmmq_data:/mnt/mqm
     networks:
       - mqsim-network
     healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      test: ["CMD", "chkmqhealthy"]
       interval: 30s
       timeout: 10s
       retries: 5
-      start_period: 40s
+      start_period: 60s
 
   mongo:
     image: mongo:7.0
@@ -36,24 +38,24 @@ services:
       start_period: 40s
 
   backend:
-    build: 
+    build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: mqsim-backend
     ports:
       - "8080:8080"
     environment:
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USERNAME=admin
-      - RABBITMQ_PASSWORD=passw0rd
-      - RABBITMQ_VIRTUAL_HOST=/
+      - IBM_MQ_QUEUE_MANAGER=QM1
+      - IBM_MQ_CHANNEL=DEV.ADMIN.SVRCONN
+      - IBM_MQ_CONN_NAME=ibmmq(1414)
+      - IBM_MQ_USER=admin
+      - IBM_MQ_PASSWORD=admin
       - MONGO_URI=mongodb://mongo:27017/mqsim
       - DEFAULT_REPLY_QUEUE=sim.reply.default
       - SPRING_PROFILES_ACTIVE=docker
       - MQ_ENABLED=true
     depends_on:
-      rabbitmq:
+      ibmmq:
         condition: service_healthy
       mongo:
         condition: service_healthy
@@ -70,7 +72,7 @@ services:
 volumes:
   mongo_data:
     driver: local
-  rabbitmq_data:
+  ibmmq_data:
     driver: local
 
 networks:

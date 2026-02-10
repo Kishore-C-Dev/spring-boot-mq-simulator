@@ -936,6 +936,12 @@
 
         function deleteQueueConfirm(button) {
             const queueId = button.getAttribute('data-queue-id');
+            console.log('Delete button clicked, queueId:', queueId);
+            console.log('Button attributes:', button.attributes);
+            if (!queueId || queueId === 'null') {
+                alert('Error: Queue ID is missing. Please refresh the page and try again.');
+                return;
+            }
             if (confirm('Are you sure you want to delete this queue?')) {
                 console.log('Deleting queue with ID:', queueId);
 
@@ -944,7 +950,17 @@
                 })
                 .then(response => {
                     console.log('Delete response status:', response.status);
-                    return response.json();
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    return response.text().then(text => {
+                        try {
+                            return text ? JSON.parse(text) : {};
+                        } catch (e) {
+                            console.warn('Response is not JSON:', text);
+                            return { message: 'Success' };
+                        }
+                    });
                 })
                 .then(data => {
                     console.log('Delete response data:', data);

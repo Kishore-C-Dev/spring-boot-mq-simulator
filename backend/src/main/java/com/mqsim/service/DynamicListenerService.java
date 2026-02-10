@@ -5,17 +5,14 @@ import com.mqsim.model.QueueConfig;
 import com.mqsim.repository.QueueConfigRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.amqp.core.Queue;
-import org.springframework.amqp.core.QueueBuilder;
-import org.springframework.amqp.rabbit.core.RabbitAdmin;
-import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
-import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.jms.listener.DefaultMessageListenerContainer;
 import org.springframework.stereotype.Service;
 
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
+import jakarta.jms.ConnectionFactory;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -28,31 +25,28 @@ public class DynamicListenerService {
 
     private final QueueConfigRepository queueConfigRepository;
     private final ConnectionFactory connectionFactory;
-    private final RabbitAdmin rabbitAdmin;
     private final DynamicMessageListener messageListener;
-    
-    private final Map<String, SimpleMessageListenerContainer> activeListeners = new ConcurrentHashMap<>();
+
+    private final Map<String, DefaultMessageListenerContainer> activeListeners = new ConcurrentHashMap<>();
 
     @Autowired
-    public DynamicListenerService(QueueConfigRepository queueConfigRepository, 
+    public DynamicListenerService(QueueConfigRepository queueConfigRepository,
                                 ConnectionFactory connectionFactory,
-                                RabbitAdmin rabbitAdmin,
                                 DynamicMessageListener messageListener) {
         this.queueConfigRepository = queueConfigRepository;
         this.connectionFactory = connectionFactory;
-        this.rabbitAdmin = rabbitAdmin;
         this.messageListener = messageListener;
     }
 
     @PostConstruct
     public void initializeListeners() {
-        logger.info("Initializing dynamic RabbitMQ listeners...");
+        logger.info("Initializing dynamic IBM MQ listeners...");
         refreshListeners();
     }
 
     @PreDestroy
     public void shutdown() {
-        logger.info("Shutting down all RabbitMQ listeners...");
+        logger.info("Shutting down all IBM MQ listeners...");
         activeListeners.values().forEach(container -> {
             try {
                 container.stop();
@@ -65,15 +59,15 @@ public class DynamicListenerService {
     }
 
     public synchronized void refreshListeners() {
-        logger.info("Refreshing RabbitMQ listeners based on queue configurations...");
-        
+        logger.info("Refreshing IBM MQ listeners based on queue configurations...");
+
         // Stop all current listeners
         stopAllListeners();
-        
+
         // Start listeners for enabled queues
         List<QueueConfig> enabledQueues = queueConfigRepository.findByEnabledTrue();
         logger.info("Found {} enabled queue configurations", enabledQueues.size());
-        
+
         for (QueueConfig queueConfig : enabledQueues) {
             try {
                 startListenerForQueue(queueConfig);
@@ -81,7 +75,7 @@ public class DynamicListenerService {
                 logger.error("Failed to start listener for queue: {}", queueConfig.getQueueName(), e);
             }
         }
-        
+
         logger.info("Listener refresh completed. Active listeners: {}", activeListeners.size());
     }
 
@@ -101,59 +95,52 @@ public class DynamicListenerService {
     private void startListenerForQueue(QueueConfig queueConfig) {
         String queueName = queueConfig.getQueueName();
         String concurrency = queueConfig.getConcurrency();
-        
+
         logger.info("Starting listener for queue: {} with concurrency: {}", queueName, concurrency);
-        
-        // Ensure queue exists
-        Queue queue = QueueBuilder.durable(queueName).build();
-        rabbitAdmin.declareQueue(queue);
-        
+
+        // IBM MQ queues are pre-defined, no need to declare them
+
         // Parse concurrency (format: "min-max" or "fixed")
-        int minConsumers = 1;
-        int maxConsumers = 1;
-        
+        int consumers = 1;
+
         if (concurrency.contains("-")) {
             String[] parts = concurrency.split("-");
-            minConsumers = Integer.parseInt(parts[0]);
-            maxConsumers = Integer.parseInt(parts[1]);
+            consumers = Integer.parseInt(parts[0]);
         } else {
-            minConsumers = maxConsumers = Integer.parseInt(concurrency);
+            consumers = Integer.parseInt(concurrency);
         }
-        
-        // Create listener container
-        SimpleMessageListenerContainer container = new SimpleMessageListenerContainer();
+
+        // Create JMS listener container
+        DefaultMessageListenerContainer container = new DefaultMessageListenerContainer();
         container.setConnectionFactory(connectionFactory);
-        container.setQueueNames(queueName);
+        container.setDestinationName(queueName);
         container.setMessageListener(messageListener);
-        container.setConcurrentConsumers(minConsumers);
-        container.setMaxConcurrentConsumers(maxConsumers);
+        container.setConcurrentConsumers(consumers);
         container.setAutoStartup(true);
-        
-        // Configure container
+
+        // Initialize and start
         container.afterPropertiesSet();
-        
-        // Start container
         container.start();
-        
+
         // Store reference
         activeListeners.put(queueName, container);
-        
-        logger.info("Successfully started listener for queue: {} (concurrency: {}-{})", 
-                   queueName, minConsumers, maxConsumers);
+
+        logger.info("Successfully started listener for queue: {} (concurrency: {})",
+                   queueName, consumers);
     }
 
     public Map<String, String> getListenerStatus() {
         Map<String, String> status = new ConcurrentHashMap<>();
         activeListeners.forEach((queueName, container) -> {
             boolean running = container.isRunning();
-            int activeConsumerCount = container.getActiveConsumerCount();
+            int activeConsumerCount = container.getConcurrentConsumers();
             status.put(queueName, String.format("Running: %s, Active Consumers: %d", running, activeConsumerCount));
         });
         return status;
     }
 
     public boolean isListenerActive(String queueName) {
-        SimpleMessageListenerContainer container = activeListeners.get(queueName);
+        DefaultMessageListenerContainer container = activeListeners.get(queueName);
         return container != null && container.isRunning();
     }
 }

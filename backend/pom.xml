@@ -15,7 +15,7 @@
     <artifactId>mq-testing-simulator</artifactId>
     <version>1.0.0</version>
     <name>MQ Testing Simulator</name>
-    <description>Spring Boot MQ Testing Simulator with RabbitMQ and MongoDB</description>
+    <description>Spring Boot MQ Testing Simulator with IBM MQ and MongoDB</description>
     
     <properties>
         <java.version>17</java.version>
@@ -48,10 +48,16 @@
             <artifactId>spring-boot-starter-validation</artifactId>
         </dependency>
         
-        <!-- RabbitMQ -->
+        <!-- IBM MQ -->
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-amqp</artifactId>
+            <groupId>com.ibm.mq</groupId>
+            <artifactId>mq-jms-spring-boot-starter</artifactId>
+            <version>3.2.1</version>
+        </dependency>
+
+        <dependency>
+            <groupId>jakarta.jms</groupId>
+            <artifactId>jakarta.jms-api</artifactId>
         </dependency>
         
         <!-- JSON Processing -->

@@ -11,15 +11,20 @@ import com.mqsim.service.DynamicListenerService;
 import com.mqsim.service.SessionManager;
 import jakarta.servlet.http.HttpSession;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
 
 @Controller
 public class UiController {
+
+    private static final Logger logger = LoggerFactory.getLogger(UiController.class);
 
     private final QueueConfigRepository queueConfigRepository;
     private final ResponseMappingRepository responseMappingRepository;
@@ -65,8 +70,14 @@ public class UiController {
         }
         
         // Get namespace-specific data
-        List<QueueConfig> queues = queueConfigRepository.findByNamespaceOrderByQueueNameAsc(currentNamespace);
-        List<ResponseMapping> mappings = responseMappingRepository.findByNamespaceOrderByQueueNameAscPriorityAsc(currentNamespace);
+        List<QueueConfig> queues = queueConfigRepository.findByNamespaceOrderByQueueNameAsc(currentNamespace, Sort.by("queueName"));
+        List<ResponseMapping> mappings = responseMappingRepository.findByNamespaceOrderByQueueNameAscPriorityAsc(currentNamespace, Sort.by("queueName", "priority"));
+
+        // Debug: Log queue information
+        logger.debug("Retrieved {} queues for namespace {}", queues.size(), currentNamespace);
+        for (QueueConfig queue : queues) {
+            logger.debug("Queue: id={}, queueName={}, namespace={}", queue.getId(), queue.getQueueName(), queue.getNamespace());
+        }
         Map<String, String> listenerStatus = dynamicListenerService != null ? 
             dynamicListenerService.getListenerStatus() : 
             Map.of();

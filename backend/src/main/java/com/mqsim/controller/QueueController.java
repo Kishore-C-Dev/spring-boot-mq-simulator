@@ -15,6 +15,7 @@ import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import org.springframework.data.domain.Sort;
 
 @RestController
 @RequestMapping("/admin/queues")
@@ -35,7 +36,7 @@ public class QueueController {
 
     @GetMapping
     public List<QueueConfig> getAllQueues() {
-        return queueConfigRepository.findAllByOrderByQueueNameAsc();
+        return queueConfigRepository.findAllByOrderByQueueNameAsc( Sort.by(Sort.Direction.ASC, "queueName"));
     }
 
     @GetMapping("/{id}")
@@ -47,6 +48,11 @@ public class QueueController {
     @PostMapping
     public ResponseEntity<?> createQueue(@Valid @RequestBody QueueConfig queueConfig) {
         try {
+            logger.debug("Received queue creation request: {}", queueConfig.toString());
+
+            // Ensure ID is null so MongoDB can generate it
+            queueConfig.setId(null);
+
             // Check for duplicate queue name
             if (queueConfigRepository.existsByQueueName(queueConfig.getQueueName())) {
                 return ResponseEntity.badRequest()
@@ -54,7 +60,8 @@ public class QueueController {
             }
 
             QueueConfig savedQueue = queueConfigRepository.save(queueConfig);
-            logger.info("Created queue configuration: {}", savedQueue.getQueueName());
+            logger.info("Created queue configuration: {} with ID: {}", savedQueue.getQueueName(), savedQueue.getId());
+            logger.debug("Saved queue object: {}", savedQueue.toString());
 
             // Refresh listeners if the new queue is enabled
             if (Boolean.TRUE.equals(savedQueue.getEnabled()) && dynamicListenerService != null) {
@@ -101,8 +108,10 @@ public class QueueController {
                 return ResponseEntity.notFound().build();
             }
 
-            queueConfigRepository.deleteById(id);
-            logger.info("Deleted queue configuration: {}", queueConfig.get().getQueueName());
+            QueueConfig configToDelete = queueConfig.get();
+            configToDelete.setDeleted(true);
+            queueConfigRepository.save(configToDelete);
+            logger.info("Soft deleted queue configuration: {}", configToDelete.getQueueName());
 
             // Refresh listeners after deletion
             if (dynamicListenerService != null) {

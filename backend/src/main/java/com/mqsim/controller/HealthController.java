@@ -1,8 +1,8 @@
 package com.mqsim.controller;
 
-import org.springframework.amqp.rabbit.connection.ConnectionFactory;
+import jakarta.jms.ConnectionFactory;
+import jakarta.jms.Connection;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,40 +20,38 @@ public class HealthController {
         Map<String, Object> health = new HashMap<>();
         health.put("status", "UP");
         health.put("timestamp", System.currentTimeMillis());
-        
-        // Check RabbitMQ connection if available
+
+        // Check IBM MQ connection if available
         if (connectionFactory != null) {
-            try {
-                connectionFactory.createConnection().close();
-                health.put("rabbitmq", "UP");
+            try (Connection connection = connectionFactory.createConnection()) {
+                health.put("ibmmq", "UP");
             } catch (Exception e) {
-                health.put("rabbitmq", "DOWN");
-                health.put("rabbitmqError", e.getMessage());
+                health.put("ibmmq", "DOWN");
+                health.put("ibmmqError", e.getMessage());
             }
         } else {
-            health.put("rabbitmq", "DISABLED");
+            health.put("ibmmq", "DISABLED");
         }
-        
+
         return health;
     }
 
     @GetMapping("/ready")
     public Map<String, Object> ready() {
         Map<String, Object> readiness = new HashMap<>();
-        
+
         if (connectionFactory != null) {
-            try {
-                connectionFactory.createConnection().close();
+            try (Connection connection = connectionFactory.createConnection()) {
                 readiness.put("status", "READY");
             } catch (Exception e) {
                 readiness.put("status", "NOT_READY");
-                readiness.put("reason", "RabbitMQ connection failed: " + e.getMessage());
+                readiness.put("reason", "IBM MQ connection failed: " + e.getMessage());
             }
         } else {
             readiness.put("status", "READY");
-            readiness.put("note", "RabbitMQ disabled");
+            readiness.put("note", "IBM MQ disabled");
         }
-        
+
         return readiness;
     }
 }

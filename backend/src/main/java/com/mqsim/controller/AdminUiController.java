@@ -50,8 +50,8 @@ public class AdminUiController {
         String currentNamespace = sessionManager.getCurrentNamespace(session);
 
         // Get all users and namespaces for admin
-        List<UserProfile> users = userProfileRepository.findAll();
-        List<Namespace> namespaces = namespaceRepository.findAll();
+        List<UserProfile> users = userProfileRepository.findAllActiveUsers();
+        List<Namespace> namespaces = namespaceRepository.findAllActiveNamespaces();
         List<Namespace> availableNamespaces = namespaceRepository.findByNameIn(currentUser.getNamespaces());
 
         model.addAttribute("currentUser", currentUser);

@@ -2,6 +2,49 @@
 
 A comprehensive Spring Boot application for simulating RabbitMQ message processing with dynamic AMQP listeners, configurable response mappings, enhanced header management, and support for XML, JSON, and Mainframe (EBCDIC) message formats. Perfect for automated testing, development, and CI/CD integration.
 
+## 🆕 What's New in v2.0
+
+This major release transforms the basic MQ Simulator into a full-featured enterprise solution with multi-tenant capabilities:
+
+### **🔐 Enterprise Authentication & Authorization**
+- **Multi-User Support**: Complete user management with Admin/User roles
+- **Namespace Isolation**: Teams can work independently without interference
+- **Session-Based Security**: Secure authentication with workspace switching
+- **Admin Console**: Dedicated interface for user and namespace administration
+
+### **📈 Advanced Message Processing**
+- **Enhanced Header Control**: Full control over correlation IDs, message IDs, and MQ-specific headers
+- **Advanced Matching**: XPath for XML, JSONPath for JSON, and mainframe field matching
+- **Dynamic Header Configuration**: Copy from requests, generate UUIDs, or set custom values
+- **Success/Error Response Variants**: Different responses for matching vs non-matching scenarios
+
+### **🛠️ Developer Experience Improvements**
+- **Modern UI**: Enhanced dashboard with better navigation and workspace context
+- **Comprehensive API**: Full REST API for automation and CI/CD integration
+- **Test Automation Ready**: Built for seamless integration into testing pipelines
+- **Docker Optimized**: Production-ready containerization with health checks
+
+### **📊 Operational Excellence**
+- **Monitoring & Health Checks**: Application health and readiness endpoints
+- **Comprehensive Documentation**: Detailed API examples and troubleshooting guides
+- **CI/CD Integration**: Ready-to-use examples for Jenkins, GitHub Actions, and more
+
+### **📊 v1.0 vs v2.0 Comparison**
+
+| Feature | v1.0 (Basic) | v2.0 (Enterprise) |
+|---------|-------------|-------------------|
+| **User Management** | ❌ Single user | ✅ Multi-user with roles (Admin/User) |
+| **Access Control** | ❌ Open access | ✅ Namespace-based isolation |
+| **Authentication** | ❌ None | ✅ Session-based with login/logout |
+| **Message Matching** | ✅ Basic (correlation ID, headers) | ✅ Advanced (XPath, JSONPath, mainframe) |
+| **Header Management** | ✅ Fixed headers only | ✅ Dynamic headers with correlation ID control |
+| **Response Types** | ✅ XML, EBCDIC | ✅ XML, JSON, EBCDIC with success/error variants |
+| **Message ID Control** | ❌ None | ✅ Custom message IDs or auto-generate |
+| **MQ Headers** | ❌ Limited | ✅ Full MQ header support (ENCODING, FORMAT, etc.) |
+| **Admin Interface** | ✅ Basic queue/mapping management | ✅ User/namespace management + queue/mapping |
+| **Test Automation** | ✅ Basic API | ✅ Comprehensive CI/CD integration examples |
+| **Documentation** | ✅ Basic setup | ✅ Enterprise-grade with troubleshooting |
+
 ## 🚀 Features
 
 ### Core Message Processing
@@ -870,15 +913,63 @@ spring-boot-mq-simulator/
         │   │   ├── MqTestingSimulatorApplication.java
         │   │   ├── config/         # RabbitMQ and Spring configuration
         │   │   ├── controller/     # REST APIs and UI controllers
+        │   │   │   ├── AdminController.java       # 🆕 Admin REST API
+        │   │   │   ├── AdminUiController.java     # 🆕 Admin UI controller
+        │   │   │   ├── AuthController.java        # 🆕 Authentication controller
+        │   │   │   └── UiController.java          # Enhanced main UI controller
         │   │   ├── listener/       # Dynamic AMQP message listener
         │   │   ├── model/          # MongoDB entities
+        │   │   │   ├── JsonPathMatchingRule.java  # 🆕 JSONPath matching
+        │   │   │   ├── MainframeMatchingRule.java # 🆕 Mainframe matching
+        │   │   │   ├── Namespace.java             # 🆕 Namespace/workspace model
+        │   │   │   ├── ResponseMapping.java       # Enhanced with new header capabilities
+        │   │   │   ├── UserProfile.java           # 🆕 User management
+        │   │   │   └── XPathMatchingRule.java     # 🆕 XPath matching
         │   │   ├── repository/     # MongoDB repositories
+        │   │   │   ├── NamespaceRepository.java   # 🆕 Namespace data access
+        │   │   │   └── UserProfileRepository.java # 🆕 User data access
         │   │   └── service/        # Business logic services
+        │   │       ├── AuthDataSeeder.java        # 🆕 Authentication data seeding
+        │   │       ├── JsonPathMessageProcessor.java # 🆕 JSON message processing
+        │   │       ├── MainframeMessageProcessor.java # 🆕 Mainframe processing
+        │   │       ├── NamespaceService.java      # 🆕 Namespace management
+        │   │       ├── ResponseService.java       # Enhanced header processing
+        │   │       ├── SessionManager.java        # 🆕 Session management
+        │   │       ├── UserService.java           # 🆕 User management
+        │   │       └── XPathMessageProcessor.java # 🆕 XML message processing
         │   └── resources/
         │       ├── application.yml # App configuration
         │       └── templates/      # Thymeleaf HTML templates
+        │           ├── admin.html      # 🆕 Admin interface
+        │           ├── dashboard.html  # Enhanced main dashboard
+        │           ├── login.html      # 🆕 Login page
+        │           └── register.html   # 🆕 User registration
         └── test/                   # Unit and integration tests
 ```
+
+## 🔧 Technical Enhancements in v2.0
+
+### **New Dependencies Added**
+- **JSONPath Library** (`com.jayway.jsonpath:json-path:2.8.0`): For advanced JSON message matching
+- **Enhanced Spring Security**: Session-based authentication and authorization
+- **Spring Data MongoDB**: Enhanced repository patterns for user and namespace management
+
+### **Database Schema Changes**
+- **New Collections**:
+  - `users` - User profiles with roles and workspace assignments
+  - `namespaces` - Workspace/team isolation containers
+  - `Enhanced mappings` - Extended with new matching capabilities and header configurations
+
+### **Security Architecture**
+- **Session Management**: HTTP session-based authentication with configurable timeouts
+- **Role-Based Access Control**: Admin vs User roles with different permissions
+- **Namespace Isolation**: Complete data separation between teams/workspaces
+- **CSRF Protection**: Built-in CSRF token validation for all state-changing operations
+
+### **Performance Optimizations**
+- **Database Indexing**: Compound indexes on namespace/queue combinations
+- **Session Storage**: Efficient session management with automatic cleanup
+- **Connection Pooling**: Optimized MongoDB connection pooling for multi-user scenarios
 
 ## 🤝 Contributing
 

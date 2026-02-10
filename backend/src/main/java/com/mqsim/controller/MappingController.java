@@ -9,7 +9,7 @@ import org.springframework.data.domain.Sort;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-
+import org.springframework.data.domain.Sort;
 import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +31,8 @@ public class MappingController {
 
     @GetMapping
     public List<ResponseMapping> getAllMappings() {
-        return responseMappingRepository.findAllByOrderByQueueNameAscPriorityAsc();
+        return responseMappingRepository.findAllByOrderByQueueNameAscPriorityAsc(Sort.by("queueName").ascending()
+                    .and(Sort.by("priority").ascending()));
     }
 
     @GetMapping("/{id}")
@@ -84,8 +85,10 @@ public class MappingController {
                 return ResponseEntity.notFound().build();
             }
 
-            responseMappingRepository.deleteById(id);
-            logger.info("Deleted response mapping: {} for queue: {}", mapping.get().getId(), mapping.get().getQueueName());
+            ResponseMapping mappingToDelete = mapping.get();
+            mappingToDelete.setDeleted(true);
+            responseMappingRepository.save(mappingToDelete);
+            logger.info("Soft deleted response mapping: {} for queue: {}", mappingToDelete.getId(), mappingToDelete.getQueueName());
             return ResponseEntity.ok(Map.of("message", "Mapping deleted successfully"));
         } catch (Exception e) {
             logger.error("Error deleting response mapping", e);

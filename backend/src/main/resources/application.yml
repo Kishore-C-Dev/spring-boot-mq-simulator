@@ -23,17 +23,17 @@ spring:
     deserialization:
       fail-on-unknown-properties: false
 
-  # RabbitMQ Configuration
-  rabbitmq:
-    host: ${RABBITMQ_HOST:localhost}
-    port: ${RABBITMQ_PORT:5672}
-    username: ${RABBITMQ_USERNAME:admin}
-    password: ${RABBITMQ_PASSWORD:passw0rd}
-    virtual-host: ${RABBITMQ_VIRTUAL_HOST:/}
+ibm:
+  mq:
+    queueManager: ${IBM_MQ_QUEUE_MANAGER:QM1}
+    channel: ${IBM_MQ_CHANNEL:DEV.ADMIN.SVRCONN}
+    connName: ${IBM_MQ_CONN_NAME:localhost(1414)}
+    user: ${IBM_MQ_USER:admin}
+    password: ${IBM_MQ_PASSWORD:admin}
 
 # MQ Configuration
 mq:
-  enabled: ${MQ_ENABLED:false}
+  enabled: ${MQ_ENABLED:true}
   default:
     reply:
       queue: ${DEFAULT_REPLY_QUEUE:sim.reply.default}
