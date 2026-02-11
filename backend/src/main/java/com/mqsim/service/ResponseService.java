@@ -9,14 +9,20 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.jms.core.JmsTemplate;
 import org.springframework.stereotype.Service;
 
+import com.ibm.mq.jakarta.jms.MQQueue;
+import com.ibm.msg.client.jakarta.wmq.WMQConstants;
+
 import jakarta.jms.BytesMessage;
 import jakarta.jms.Destination;
 import jakarta.jms.Message;
 import jakarta.jms.TextMessage;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Enumeration;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -24,6 +30,12 @@ import java.util.UUID;
 public class ResponseService {
 
     private static final Logger logger = LoggerFactory.getLogger(ResponseService.class);
+
+    // MQMD properties that must be set as int properties via IBM MQ JMS property names
+    private static final Set<String> INT_MQMD_PROPERTIES = Set.of(
+        "CodedCharsetId", "CCSID", "Encoding", "Persistence", "MsgType", "Expiry",
+        "Priority", "Report", "MsgFlags"
+    );
 
     private final JmsTemplate jmsTemplate;
     private final Random random = new Random();
@@ -57,8 +69,13 @@ public class ResponseService {
             String replyQueue = getReplyQueue(originalMessage);
             String correlationId = getCorrelationId(originalMessage);
 
+            // Create MQ destination with targetClient=1 (non-JMS mode)
+            // This prevents RFH2 headers so MQMD directly reflects payload encoding
+            MQQueue mqDestination = new MQQueue(replyQueue);
+            mqDestination.setTargetClient(WMQConstants.WMQ_CLIENT_NONJMS_MQ);
+
             // Send response via JMS
-            jmsTemplate.send(replyQueue, session -> {
+            jmsTemplate.send(mqDestination, session -> {
                 // Create message body based on response type
                 byte[] body = createResponseBody(originalMessage, mapping);
 
@@ -97,13 +114,17 @@ public class ResponseService {
                     }
                 }
 
-                // Set MQ-specific headers
-                if (mapping.getResponse().getMqHeaders() != null) {
-                    for (Map.Entry<String, String> entry : mapping.getResponse().getMqHeaders().entrySet()) {
-                        String headerName = entry.getKey();
-                        String headerValue = entry.getValue();
-                        if (headerValue != null && !headerValue.trim().isEmpty()) {
-                            responseMessage.setStringProperty(headerName, headerValue);
+                // Set MQ-specific headers with proper MQMD property mapping
+                setMqHeaders(responseMessage, mapping.getResponse().getMqHeaders());
+
+                // Set CCSID from mainframeCharset if response type is MAINFRAME
+                if (mapping.getResponse().getType() == ResponseMapping.ResponseConfig.ResponseType.MAINFRAME) {
+                    String charset = mapping.getResponse().getMainframeCharset();
+                    if (charset != null && !charset.trim().isEmpty()) {
+                        int ccsid = charsetToCcsid(charset);
+                        if (ccsid > 0) {
+                            responseMessage.setIntProperty("JMS_IBM_Character_Set", ccsid);
+                            logger.debug("Set MQMD CCSID to {} from mainframeCharset '{}'", ccsid, charset);
                         }
                     }
                 }
@@ -129,6 +150,109 @@ public class ResponseService {
         }
     }
 
+    /**
+     * Set MQ-specific headers, mapping known MQMD fields to their correct
+     * IBM MQ JMS property names and types (int vs string).
+     */
+    private void setMqHeaders(Message responseMessage, Map<String, String> mqHeaders) throws jakarta.jms.JMSException {
+        if (mqHeaders == null) {
+            return;
+        }
+
+        for (Map.Entry<String, String> entry : mqHeaders.entrySet()) {
+            String headerName = entry.getKey();
+            String headerValue = entry.getValue();
+            if (headerValue == null || headerValue.trim().isEmpty()) {
+                continue;
+            }
+
+            switch (headerName) {
+                case "CodedCharsetId":
+                case "CCSID":
+                    responseMessage.setIntProperty("JMS_IBM_Character_Set", Integer.parseInt(headerValue));
+                    logger.debug("Set MQMD CodedCharSetId (JMS_IBM_Character_Set) = {}", headerValue);
+                    break;
+                case "Encoding":
+                    responseMessage.setIntProperty("JMS_IBM_Encoding", Integer.parseInt(headerValue));
+                    logger.debug("Set MQMD Encoding (JMS_IBM_Encoding) = {}", headerValue);
+                    break;
+                case "FORMAT":
+                case "Format":
+                    responseMessage.setStringProperty("JMS_IBM_Format", headerValue);
+                    logger.debug("Set MQMD Format (JMS_IBM_Format) = {}", headerValue);
+                    break;
+                case "Persistence":
+                    responseMessage.setIntProperty("JMS_IBM_MsgType", Integer.parseInt(headerValue));
+                    break;
+                case "Report":
+                    responseMessage.setIntProperty("JMS_IBM_Report", Integer.parseInt(headerValue));
+                    break;
+                case "MsgType":
+                    responseMessage.setIntProperty("JMS_IBM_MsgType", Integer.parseInt(headerValue));
+                    break;
+                default:
+                    // Unknown MQ header — set as string property
+                    responseMessage.setStringProperty(headerName, headerValue);
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Map Java charset name to IBM MQ CCSID number.
+     */
+    private int charsetToCcsid(String charset) {
+        if (charset == null) {
+            return -1;
+        }
+        switch (charset.toUpperCase()) {
+            case "CP500":
+            case "IBM500":
+            case "EBCDIC-CP-BE":
+                return 500;
+            case "CP037":
+            case "IBM037":
+                return 37;
+            case "CP1047":
+            case "IBM1047":
+                return 1047;
+            case "CP273":
+            case "IBM273":
+                return 273;
+            case "CP277":
+            case "IBM277":
+                return 277;
+            case "CP278":
+            case "IBM278":
+                return 278;
+            case "CP280":
+            case "IBM280":
+                return 280;
+            case "CP284":
+            case "IBM284":
+                return 284;
+            case "CP285":
+            case "IBM285":
+                return 285;
+            case "CP297":
+            case "IBM297":
+                return 297;
+            case "UTF-8":
+            case "UTF8":
+                return 1208;
+            case "ISO-8859-1":
+            case "ISO8859_1":
+            case "LATIN1":
+                return 819;
+            case "US-ASCII":
+            case "ASCII":
+                return 437;
+            default:
+                logger.warn("Unknown charset '{}' — cannot map to CCSID, skipping", charset);
+                return -1;
+        }
+    }
+
     private int calculateDelay(ResponseMapping.DelayConfig delayConfig) {
         if (delayConfig.getMode() == ResponseMapping.DelayConfig.DelayMode.FIXED) {
             return delayConfig.getFixedMs() != null ? delayConfig.getFixedMs() : 0;
@@ -144,10 +268,7 @@ public class ResponseService {
             // Priority 1: Check standard JMS reply-to destination
             Destination replyTo = originalMessage.getJMSReplyTo();
             if (replyTo != null) {
-                String replyToStr = replyTo.toString();
-                if (replyToStr.contains("///")) {
-                    replyToStr = replyToStr.substring(replyToStr.lastIndexOf("///") + 3);
-                }
+                String replyToStr = extractQueueName(replyTo.toString());
                 if (isValidQueueName(replyToStr)) {
                     logger.debug("Using JMS reply-to destination: {}", replyToStr);
                     return replyToStr.trim();
@@ -182,13 +303,11 @@ public class ResponseService {
 
     private String getPropertyCaseInsensitive(Message message, String targetKey) {
         try {
-            // First try exact match
             String value = message.getStringProperty(targetKey);
             if (value != null) {
                 return value;
             }
 
-            // Then try case-insensitive match
             Enumeration<?> names = message.getPropertyNames();
             while (names.hasMoreElements()) {
                 String name = names.nextElement().toString();
@@ -206,43 +325,66 @@ public class ResponseService {
         return queueName != null && !queueName.trim().isEmpty();
     }
 
+    private String extractQueueName(String destinationStr) {
+        if (destinationStr == null) {
+            return null;
+        }
+        if (destinationStr.startsWith("queue://")) {
+            String afterScheme = destinationStr.substring("queue://".length());
+            int slashIdx = afterScheme.indexOf('/');
+            if (slashIdx >= 0) {
+                return afterScheme.substring(slashIdx + 1);
+            }
+        }
+        return destinationStr;
+    }
+
     private byte[] createResponseBody(Message originalMessage, ResponseMapping mapping) {
         try {
             if (mapping.getResponse().getType() == ResponseMapping.ResponseConfig.ResponseType.XML) {
                 String responseBody = determineXmlResponse(originalMessage, mapping);
-                return responseBody.getBytes();
+                return responseBody.getBytes(StandardCharsets.UTF_8);
             } else if (mapping.getResponse().getType() == ResponseMapping.ResponseConfig.ResponseType.JSON) {
                 String responseBody = determineJsonResponse(originalMessage, mapping);
-                return responseBody.getBytes();
+                return responseBody.getBytes(StandardCharsets.UTF_8);
             } else if (mapping.getResponse().getType() == ResponseMapping.ResponseConfig.ResponseType.MAINFRAME) {
-                String base64Response = determineMainframeResponse(originalMessage, mapping);
+                String responseStr = determineMainframeResponse(originalMessage, mapping);
+                String charset = mapping.getResponse().getMainframeCharset();
 
+                // First try Base64 decode (response body is pre-encoded binary)
                 try {
-                    String cleanBase64 = cleanBase64String(base64Response);
+                    String cleanBase64 = cleanBase64String(responseStr);
                     byte[] decoded = Base64.getDecoder().decode(cleanBase64);
-                    logger.debug("Successfully decoded Base64 mainframe response, length: {} bytes", decoded.length);
+                    logger.debug("Decoded Base64 mainframe response, length: {} bytes", decoded.length);
                     return decoded;
                 } catch (IllegalArgumentException e) {
-                    logger.warn("Invalid Base64 in mainframe response, treating as string: {}", e.getMessage());
-                    String charset = mapping.getResponse().getMainframeCharset();
-
-                    if (charset != null && !charset.trim().isEmpty()) {
-                        try {
-                            return base64Response.getBytes(charset);
-                        } catch (Exception ex) {
-                            logger.warn("Failed to encode mainframe response with charset {}, using UTF-8", charset, ex);
-                            return base64Response.getBytes();
-                        }
-                    } else {
-                        return base64Response.getBytes();
-                    }
+                    // Not Base64 — encode the plain text using the configured charset
+                    logger.debug("Response is not Base64, encoding as text with charset '{}'",
+                                charset != null ? charset : "UTF-8");
+                    Charset cs = resolveCharset(charset);
+                    return responseStr.getBytes(cs);
                 }
             } else {
-                return "Unknown response type".getBytes();
+                return "Unknown response type".getBytes(StandardCharsets.UTF_8);
             }
         } catch (Exception e) {
             logger.error("Error creating response body", e);
             throw new RuntimeException("Failed to create response body", e);
+        }
+    }
+
+    /**
+     * Resolve a charset name to a Java Charset, falling back to UTF-8.
+     */
+    private Charset resolveCharset(String charsetName) {
+        if (charsetName == null || charsetName.trim().isEmpty()) {
+            return StandardCharsets.UTF_8;
+        }
+        try {
+            return Charset.forName(charsetName);
+        } catch (Exception e) {
+            logger.warn("Unknown charset '{}', falling back to UTF-8", charsetName);
+            return StandardCharsets.UTF_8;
         }
     }
 
@@ -326,7 +468,7 @@ public class ResponseService {
                 bytesMessage.readBytes(body);
                 return body;
             } else if (message instanceof TextMessage) {
-                return ((TextMessage) message).getText().getBytes();
+                return ((TextMessage) message).getText().getBytes(StandardCharsets.UTF_8);
             }
             return message.getBody(byte[].class);
         } catch (Exception e) {
@@ -444,10 +586,6 @@ public class ResponseService {
 
         logger.debug("Base64 cleaning: original length={}, cleaned length={}",
                     base64String.length(), cleaned.length());
-
-        if (!base64String.equals(cleaned)) {
-            logger.debug("Cleaned Base64 string: removed whitespace/newlines");
-        }
 
         return cleaned;
     }

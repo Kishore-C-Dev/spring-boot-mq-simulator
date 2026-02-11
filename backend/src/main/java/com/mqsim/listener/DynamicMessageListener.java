@@ -78,19 +78,31 @@ public class DynamicMessageListener implements MessageListener {
         try {
             Destination destination = message.getJMSDestination();
             if (destination != null) {
-                // Extract queue name from destination toString
-                String destStr = destination.toString();
-                // IBM MQ destination toString() returns something like "queue:///QUEUE.NAME"
-                if (destStr.contains("///")) {
-                    return destStr.substring(destStr.lastIndexOf("///") + 3);
-                }
-                return destStr;
+                return extractQueueName(destination.toString());
             }
             return "unknown";
         } catch (Exception e) {
             logger.debug("Could not get queue name from message", e);
             return "unknown";
         }
+    }
+
+    /**
+     * Extract plain queue name from IBM MQ JMS destination string.
+     * Handles formats like "queue://QM1/QUEUE.NAME" and "queue:///QUEUE.NAME"
+     */
+    private String extractQueueName(String destinationStr) {
+        if (destinationStr == null) {
+            return "unknown";
+        }
+        if (destinationStr.startsWith("queue://")) {
+            String afterScheme = destinationStr.substring("queue://".length());
+            int slashIdx = afterScheme.indexOf('/');
+            if (slashIdx >= 0) {
+                return afterScheme.substring(slashIdx + 1);
+            }
+        }
+        return destinationStr;
     }
 
     private String getCorrelationId(Message message) {

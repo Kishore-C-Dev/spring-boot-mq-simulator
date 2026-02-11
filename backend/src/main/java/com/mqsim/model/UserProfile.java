@@ -1,36 +1,49 @@
 package com.mqsim.model;
 
-import org.springframework.data.annotation.Id;
-import org.springframework.data.mongodb.core.mapping.Document;
-import org.springframework.data.mongodb.core.index.Indexed;
+import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.List;
 import java.util.ArrayList;
 
-@Document(collection = "userProfiles")
+@Entity
+@Table(name = "user_profiles", indexes = {
+    @Index(name = "idx_user_profiles_user_id", columnList = "userId", unique = true),
+    @Index(name = "idx_user_profiles_email", columnList = "email")
+})
 public class UserProfile {
-    
+
     @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
     private String id;
-    
-    @Indexed(unique = true)
+
+    @Column(nullable = false, unique = true)
     private String userId;           // Unique user identifier (username)
-    
-    @Indexed
+
+    @Column(unique = true)
     private String email;
-    
+
     private String firstName;
     private String lastName;
     private String passwordHash;     // Hashed password for simple auth
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(columnDefinition = "jsonb")
     private List<String> namespaces; // Assigned namespace names
+
     private String defaultNamespace;
     private String role;             // User role (admin, user)
     private Instant createdAt;
     private Instant lastLogin;
+
+    @Column(nullable = false)
     private boolean active;
+
+    @Column(nullable = false)
     private boolean deleted;
-    
+
     // Constructors
     public UserProfile() {
         this.namespaces = new ArrayList<>();
@@ -38,7 +51,7 @@ public class UserProfile {
         this.deleted = false;
         this.createdAt = Instant.now();
     }
-    
+
     public UserProfile(String userId, String email, String firstName, String lastName) {
         this();
         this.userId = userId;
@@ -46,68 +59,68 @@ public class UserProfile {
         this.firstName = firstName;
         this.lastName = lastName;
     }
-    
+
     // Getters and Setters
     public String getId() {
         return id;
     }
-    
+
     public void setId(String id) {
         this.id = id;
     }
-    
+
     public String getUserId() {
         return userId;
     }
-    
+
     public void setUserId(String userId) {
         this.userId = userId;
     }
-    
+
     public String getEmail() {
         return email;
     }
-    
+
     public void setEmail(String email) {
         this.email = email;
     }
-    
+
     public String getFirstName() {
         return firstName;
     }
-    
+
     public void setFirstName(String firstName) {
         this.firstName = firstName;
     }
-    
+
     public String getLastName() {
         return lastName;
     }
-    
+
     public void setLastName(String lastName) {
         this.lastName = lastName;
     }
-    
+
     public String getPasswordHash() {
         return passwordHash;
     }
-    
+
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
     }
-    
+
     public List<String> getNamespaces() {
         return namespaces;
     }
-    
+
     public void setNamespaces(List<String> namespaces) {
         this.namespaces = namespaces;
     }
-    
+
     public String getDefaultNamespace() {
         return defaultNamespace;
     }
-    
+
     public void setDefaultNamespace(String defaultNamespace) {
         this.defaultNamespace = defaultNamespace;
     }
@@ -123,35 +136,35 @@ public class UserProfile {
     public Instant getCreatedAt() {
         return createdAt;
     }
-    
+
     public void setCreatedAt(Instant createdAt) {
         this.createdAt = createdAt;
     }
-    
+
     public Instant getLastLogin() {
         return lastLogin;
     }
-    
+
     public void setLastLogin(Instant lastLogin) {
         this.lastLogin = lastLogin;
     }
-    
+
     public boolean isActive() {
         return active;
     }
-    
+
     public void setActive(boolean active) {
         this.active = active;
     }
-    
+
     public boolean isDeleted() {
         return deleted;
     }
-    
+
     public void setDeleted(boolean deleted) {
         this.deleted = deleted;
     }
-    
+
     // Helper methods
     public String getDisplayName() {
         if (firstName != null && lastName != null) {
@@ -159,11 +172,11 @@ public class UserProfile {
         }
         return userId;
     }
-    
+
     public boolean hasNamespace(String namespace) {
         return namespaces != null && namespaces.contains(namespace);
     }
-    
+
     public void addNamespace(String namespace) {
         if (namespaces == null) {
             namespaces = new ArrayList<>();
@@ -175,7 +188,7 @@ public class UserProfile {
             defaultNamespace = namespace;
         }
     }
-    
+
     public void removeNamespace(String namespace) {
         if (namespaces != null) {
             namespaces.remove(namespace);
@@ -184,7 +197,7 @@ public class UserProfile {
             }
         }
     }
-    
+
     @Override
     public String toString() {
         return "UserProfile{" +

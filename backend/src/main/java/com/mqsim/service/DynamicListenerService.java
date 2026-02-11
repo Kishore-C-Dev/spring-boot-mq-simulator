@@ -96,9 +96,13 @@ public class DynamicListenerService {
         String queueName = queueConfig.getQueueName();
         String concurrency = queueConfig.getConcurrency();
 
-        logger.info("Starting listener for queue: {} with concurrency: {}", queueName, concurrency);
+        // Validate queue name for IBM MQ
+        if (!isValidMqQueueName(queueName)) {
+            logger.warn("Skipping queue '{}' - invalid IBM MQ queue name (allowed: A-Z, a-z, 0-9, '.', '/', '_', '%', max 48 chars)", queueName);
+            return;
+        }
 
-        // IBM MQ queues are pre-defined, no need to declare them
+        logger.info("Starting listener for queue: {} with concurrency: {}", queueName, concurrency);
 
         // Parse concurrency (format: "min-max" or "fixed")
         int consumers = 1;
@@ -127,6 +131,13 @@ public class DynamicListenerService {
 
         logger.info("Successfully started listener for queue: {} (concurrency: {})",
                    queueName, consumers);
+    }
+
+    private boolean isValidMqQueueName(String queueName) {
+        if (queueName == null || queueName.trim().isEmpty() || queueName.length() > 48) {
+            return false;
+        }
+        return queueName.matches("[A-Za-z0-9._/%]+");
     }
 
     public Map<String, String> getListenerStatus() {

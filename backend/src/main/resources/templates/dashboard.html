@@ -1186,8 +1186,27 @@
             // Set header configurations
             mapping.response.headerConfigs = collectHeaderConfigs();
 
-            // Set enhanced header configurations
-            mapping.response.enhancedHeaders = collectEnhancedHeaderConfig();
+            // Set MQ-specific headers, correlation ID, and message ID configs
+            // Map from UI structure to flat backend model fields
+            const enhancedHeaders = collectEnhancedHeaderConfig();
+
+            if (enhancedHeaders.mqSpecificHeaders) {
+                mapping.response.mqHeaders = enhancedHeaders.mqSpecificHeaders;
+            }
+
+            if (enhancedHeaders.correlationId) {
+                mapping.response.correlationIdConfig = enhancedHeaders.correlationId.mode;
+                if (enhancedHeaders.correlationId.customValue) {
+                    mapping.response.customCorrelationId = enhancedHeaders.correlationId.customValue;
+                }
+            }
+
+            if (enhancedHeaders.messageId) {
+                mapping.response.messageIdConfig = enhancedHeaders.messageId.mode;
+                if (enhancedHeaders.messageId.customValue) {
+                    mapping.response.customMessageId = enhancedHeaders.messageId.customValue;
+                }
+            }
 
             // Set delay configuration
             if (mapping.delay.mode === 'FIXED') {
@@ -1451,37 +1470,35 @@
         }
 
         function loadEnhancedHeaderConfig(mapping) {
-            // Load correlation ID configuration
-            if (mapping.response && mapping.response.enhancedHeaders && mapping.response.enhancedHeaders.correlationId) {
-                const correlationIdConfig = mapping.response.enhancedHeaders.correlationId;
-                const correlationIdModeRadio = document.querySelector(`input[name="correlationIdMode"][value="${correlationIdConfig.mode}"]`);
+            // Load correlation ID configuration from flat backend fields
+            if (mapping.response && mapping.response.correlationIdConfig) {
+                const correlationIdModeRadio = document.querySelector(`input[name="correlationIdMode"][value="${mapping.response.correlationIdConfig}"]`);
                 if (correlationIdModeRadio) {
                     correlationIdModeRadio.checked = true;
-                    if (correlationIdConfig.mode === 'CUSTOM_VALUE' && correlationIdConfig.customValue) {
-                        document.getElementById('customCorrelationId').value = correlationIdConfig.customValue;
+                    if (mapping.response.correlationIdConfig === 'CUSTOM_VALUE' && mapping.response.customCorrelationId) {
+                        document.getElementById('customCorrelationId').value = mapping.response.customCorrelationId;
                     }
                     toggleCorrelationIdFields();
                 }
             }
 
-            // Load message ID configuration
-            if (mapping.response && mapping.response.enhancedHeaders && mapping.response.enhancedHeaders.messageId) {
-                const messageIdConfig = mapping.response.enhancedHeaders.messageId;
-                const messageIdModeRadio = document.querySelector(`input[name="messageIdMode"][value="${messageIdConfig.mode}"]`);
+            // Load message ID configuration from flat backend fields
+            if (mapping.response && mapping.response.messageIdConfig) {
+                const messageIdModeRadio = document.querySelector(`input[name="messageIdMode"][value="${mapping.response.messageIdConfig}"]`);
                 if (messageIdModeRadio) {
                     messageIdModeRadio.checked = true;
-                    if (messageIdConfig.mode === 'CUSTOM_VALUE' && messageIdConfig.customValue) {
-                        document.getElementById('customMessageId').value = messageIdConfig.customValue;
+                    if (mapping.response.messageIdConfig === 'CUSTOM_VALUE' && mapping.response.customMessageId) {
+                        document.getElementById('customMessageId').value = mapping.response.customMessageId;
                     }
                     toggleMessageIdFields();
                 }
             }
 
-            // Load MQ-specific headers
+            // Load MQ-specific headers from flat backend field
             const mqHeadersContainer = document.getElementById('mqHeaders');
             mqHeadersContainer.innerHTML = ''; // Clear existing
-            if (mapping.response && mapping.response.enhancedHeaders && mapping.response.enhancedHeaders.mqSpecificHeaders) {
-                Object.entries(mapping.response.enhancedHeaders.mqSpecificHeaders).forEach(([headerName, headerValue]) => {
+            if (mapping.response && mapping.response.mqHeaders) {
+                Object.entries(mapping.response.mqHeaders).forEach(([headerName, headerValue]) => {
                     addMqHeader(headerName, headerValue);
                 });
             }

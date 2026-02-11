@@ -2,48 +2,49 @@ package com.mqsim.repository;
 
 import com.mqsim.model.ResponseMapping;
 import org.springframework.data.domain.Sort;
-import org.springframework.data.mongodb.repository.MongoRepository;
-import org.springframework.data.mongodb.repository.Query;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
 @Repository
-public interface ResponseMappingRepository extends MongoRepository<ResponseMapping, String> {
-    
+public interface ResponseMappingRepository extends JpaRepository<ResponseMapping, String> {
+
     // Namespace-aware queries with soft delete filter
-    @Query("{ 'namespace': ?0, 'queueName': ?1, 'enabled': true, 'deleted': { $ne: true } }")
-    List<ResponseMapping> findByNamespaceAndQueueNameAndEnabledTrueOrderByPriorityAsc(String namespace, String queueName, Sort sort);
+    @Query("SELECT r FROM ResponseMapping r WHERE r.namespace = :namespace AND r.queueName = :queueName AND r.enabled = true AND r.deleted = false")
+    List<ResponseMapping> findByNamespaceAndQueueNameAndEnabledTrueOrderByPriorityAsc(@Param("namespace") String namespace, @Param("queueName") String queueName, Sort sort);
 
-    @Query("{ 'namespace': ?0, 'queueName': ?1, 'deleted': { $ne: true } }")
-    List<ResponseMapping> findByNamespaceAndQueueName(String namespace, String queueName);
+    @Query("SELECT r FROM ResponseMapping r WHERE r.namespace = :namespace AND r.queueName = :queueName AND r.deleted = false")
+    List<ResponseMapping> findByNamespaceAndQueueName(@Param("namespace") String namespace, @Param("queueName") String queueName);
 
-    @Query("{ 'namespace': ?0, 'deleted': { $ne: true } }")
-    List<ResponseMapping> findByNamespaceOrderByQueueNameAscPriorityAsc(String namespace, Sort sort);
+    @Query("SELECT r FROM ResponseMapping r WHERE r.namespace = :namespace AND r.deleted = false")
+    List<ResponseMapping> findByNamespaceOrderByQueueNameAscPriorityAsc(@Param("namespace") String namespace, Sort sort);
 
-    @Query("{ 'namespace': ?0, 'deleted': { $ne: true } }")
-    List<ResponseMapping> findByNamespace(String namespace);
+    @Query("SELECT r FROM ResponseMapping r WHERE r.namespace = :namespace AND r.deleted = false")
+    List<ResponseMapping> findByNamespace(@Param("namespace") String namespace);
 
-    @Query(value = "{ 'namespace': ?0, 'queueName': ?1, 'deleted': { $ne: true } }", count = true)
-    long countByNamespaceAndQueueName(String namespace, String queueName);
-    
+    @Query("SELECT COUNT(r) FROM ResponseMapping r WHERE r.namespace = :namespace AND r.queueName = :queueName AND r.deleted = false")
+    long countByNamespaceAndQueueName(@Param("namespace") String namespace, @Param("queueName") String queueName);
+
     // Legacy queries (for backward compatibility and migration) with soft delete filter
-    @Query("{ 'queueName': ?0, 'enabled': true, 'deleted': { $ne: true } }")
-    List<ResponseMapping> findByQueueNameAndEnabledTrueOrderByPriorityAsc(String queueName, Sort sort);
+    @Query("SELECT r FROM ResponseMapping r WHERE r.queueName = :queueName AND r.enabled = true AND r.deleted = false")
+    List<ResponseMapping> findByQueueNameAndEnabledTrueOrderByPriorityAsc(@Param("queueName") String queueName, Sort sort);
 
-    @Query("{ 'queueName': ?0, 'deleted': { $ne: true } }")
-    List<ResponseMapping> findByQueueName(String queueName);
+    @Query("SELECT r FROM ResponseMapping r WHERE r.queueName = :queueName AND r.deleted = false")
+    List<ResponseMapping> findByQueueName(@Param("queueName") String queueName);
 
-    @Query("{ 'deleted': { $ne: true } }")
+    @Query("SELECT r FROM ResponseMapping r WHERE r.deleted = false")
     List<ResponseMapping> findAllByOrderByQueueNameAscPriorityAsc(Sort sort);
 
-    @Query(value = "{ 'queueName': ?0, 'deleted': { $ne: true } }", count = true)
-    long countByQueueName(String queueName);
+    @Query("SELECT COUNT(r) FROM ResponseMapping r WHERE r.queueName = :queueName AND r.deleted = false")
+    long countByQueueName(@Param("queueName") String queueName);
 
     // Additional soft delete query methods
-    @Query("{ 'deleted': { $ne: true } }")
+    @Query("SELECT r FROM ResponseMapping r WHERE r.deleted = false")
     List<ResponseMapping> findAllNonDeleted();
 
-    @Query("{ 'deleted': { $ne: true } }")
+    @Query("SELECT r FROM ResponseMapping r WHERE r.deleted = false")
     List<ResponseMapping> findAllNonDeleted(Sort sort);
 }

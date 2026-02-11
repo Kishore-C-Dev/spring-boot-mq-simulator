@@ -21,21 +21,25 @@ services:
       retries: 5
       start_period: 60s
 
-  mongo:
-    image: mongo:7.0
-    container_name: mqsim-mongo
+  postgres:
+    image: postgres:16-alpine
+    container_name: mqsim-postgres
     ports:
-      - "27017:27017"
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=mqsim
+      - POSTGRES_USER=mqsim
+      - POSTGRES_PASSWORD=mqsim
     volumes:
-      - mongo_data:/data/db
+      - postgres_data:/var/lib/postgresql/data
     networks:
       - mqsim-network
     healthcheck:
-      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      test: ["CMD-SHELL", "pg_isready -U mqsim -d mqsim"]
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 40s
+      start_period: 30s
 
   backend:
     build:
@@ -50,14 +54,16 @@ services:
       - IBM_MQ_CONN_NAME=ibmmq(1414)
       - IBM_MQ_USER=admin
       - IBM_MQ_PASSWORD=admin
-      - MONGO_URI=mongodb://mongo:27017/mqsim
+      - DATABASE_URL=jdbc:postgresql://postgres:5432/mqsim
+      - DATABASE_USERNAME=mqsim
+      - DATABASE_PASSWORD=mqsim
       - DEFAULT_REPLY_QUEUE=sim.reply.default
       - SPRING_PROFILES_ACTIVE=docker
       - MQ_ENABLED=true
     depends_on:
       ibmmq:
         condition: service_healthy
-      mongo:
+      postgres:
         condition: service_healthy
     networks:
       - mqsim-network
@@ -70,7 +76,7 @@ services:
     restart: unless-stopped
 
 volumes:
-  mongo_data:
+  postgres_data:
     driver: local
   ibmmq_data:
     driver: local
