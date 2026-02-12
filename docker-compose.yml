@@ -41,14 +41,41 @@ services:
       retries: 3
       start_period: 30s
 
-  backend:
+  admin-console:
     build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: mqsim-backend
+      context: .
+      dockerfile: admin-console/Dockerfile
+    container_name: mqsim-admin-console
     ports:
       - "8080:8080"
     environment:
+      - DATABASE_URL=jdbc:postgresql://postgres:5432/mqsim
+      - DATABASE_USERNAME=mqsim
+      - DATABASE_PASSWORD=mqsim
+      - MOCK_SERVER_URLS=http://mq-mock-default:8090
+      - SPRING_PROFILES_ACTIVE=docker
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - mqsim-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+
+  mq-mock-default:
+    build:
+      context: .
+      dockerfile: mq-mock-server/Dockerfile
+    container_name: mqsim-mock-default
+    ports:
+      - "8090:8090"
+    environment:
+      - MQSIM_NAMESPACE=default
       - IBM_MQ_QUEUE_MANAGER=QM1
       - IBM_MQ_CHANNEL=DEV.ADMIN.SVRCONN
       - IBM_MQ_CONN_NAME=ibmmq(1414)
@@ -59,7 +86,6 @@ services:
       - DATABASE_PASSWORD=mqsim
       - DEFAULT_REPLY_QUEUE=sim.reply.default
       - SPRING_PROFILES_ACTIVE=docker
-      - MQ_ENABLED=true
     depends_on:
       ibmmq:
         condition: service_healthy
@@ -68,7 +94,7 @@ services:
     networks:
       - mqsim-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/actuator/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8090/health"]
       interval: 30s
       timeout: 10s
       retries: 3

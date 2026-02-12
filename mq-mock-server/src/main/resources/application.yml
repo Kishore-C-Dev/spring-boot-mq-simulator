@@ -1,0 +1,72 @@
+server:
+  port: 8090
+
+spring:
+  application:
+    name: mqsim-mock-server
+
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5432/appdb}
+    username: ${DATABASE_USERNAME:appuser}
+    password: ${DATABASE_PASSWORD:apppass}
+
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+  jackson:
+    serialization:
+      write-dates-as-timestamps: false
+    deserialization:
+      fail-on-unknown-properties: false
+
+ibm:
+  mq:
+    queueManager: ${IBM_MQ_QUEUE_MANAGER:QM1}
+    channel: ${IBM_MQ_CHANNEL:DEV.ADMIN.SVRCONN}
+    connName: ${IBM_MQ_CONN_NAME:localhost(1414)}
+    user: ${IBM_MQ_USER:admin}
+    password: ${IBM_MQ_PASSWORD:admin}
+
+mq:
+  default:
+    reply:
+      queue: ${DEFAULT_REPLY_QUEUE:sim.reply.default}
+
+mqsim:
+  namespace: ${MQSIM_NAMESPACE:default}
+
+logging:
+  level:
+    com.mqsim: DEBUG
+    org.springframework.jms: INFO
+    com.ibm.mq: WARN
+  pattern:
+    console: "%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n"
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+
+---
+spring:
+  config:
+    activate:
+      on-profile: docker
+
+logging:
+  level:
+    root: INFO
+    com.mqsim: INFO
