@@ -229,11 +229,17 @@ public class ResponseService {
     }
 
     private int calculateDelay(ResponseMapping.DelayConfig delayConfig) {
+        if (delayConfig == null) {
+            return 0;
+        }
         if (delayConfig.getMode() == ResponseMapping.DelayConfig.DelayMode.FIXED) {
             return delayConfig.getFixedMs() != null ? delayConfig.getFixedMs() : 0;
         } else {
             int min = delayConfig.getVariableMinMs() != null ? delayConfig.getVariableMinMs() : 100;
             int max = delayConfig.getVariableMaxMs() != null ? delayConfig.getVariableMaxMs() : 500;
+            if (min >= max) {
+                return min;
+            }
             return min + random.nextInt(max - min + 1);
         }
     }
