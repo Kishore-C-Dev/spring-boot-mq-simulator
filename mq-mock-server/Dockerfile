@@ -6,7 +6,7 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y curl && rm -rf /var/lib/apt/lists/*
 
 # Copy the jar file
-COPY mq-mock-server/target/mq-simulator-mock-server-1.0.0.jar app.jar
+COPY target/mq-simulator-mock-server-1.0.0.jar app.jar
 
 # Expose port
 EXPOSE 8090
